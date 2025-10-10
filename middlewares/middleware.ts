@@ -3,7 +3,6 @@ import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import express from 'express'
 import type { Application } from 'express'
-import mongoSanitize from 'express-mongo-sanitize'
 import helmet from 'helmet'
 import hpp from 'hpp'
 import morgan from 'morgan'
@@ -25,7 +24,6 @@ if (isDevelopment) app.use(morgan('dev')) // Development logging
 app.use(helmet()) // Set security HTTP headers
 app.use(express.json()) // Body parser, convert rawBody into req.body json
 app.use(cookieParser()) // Body parser, reading data from cookie
-app.use(mongoSanitize()) // Data sanitization against NoSQL query injection
 app.use(hpp()) // Prevent parameter pollution
 app.use(compression()) // COMPRESS RESPONSE BODY
 

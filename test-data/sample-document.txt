@@ -1,0 +1,52 @@
+
+# Sample Document for RAG Testing
+
+## Introduction
+
+This is a sample document to test the Retrieval-Augmented Generation (RAG) system. The document contains various sections that can be used to test the chunking, embedding, and retrieval capabilities of the system.
+
+## Key Features
+
+The RAG system includes the following features:
+
+1. **Document Ingestion**: Supports PDF and text file processing
+2. **Intelligent Chunking**: Breaks documents into 2000-character chunks with 200-character overlap
+3. **Vector Database**: Uses FAISS for efficient similarity search
+4. **Multi-document Chat**: Allows conversations across multiple documents
+5. **Customizable Prompts**: Different AI personas for different document types
+
+## Technical Architecture
+
+The system is built using:
+- Node.js and Express for the backend API
+- TypeScript for type safety
+- MongoDB for document metadata storage
+- FAISS for vector database functionality
+- OpenAI for embeddings and chat completion
+
+## Usage Instructions
+
+To use the system:
+
+1. Upload documents via the /ingest endpoint
+2. Create a chat session with selected documents
+3. Ask questions and receive AI-powered responses
+4. The system will reference relevant document chunks in responses
+
+## Sample Questions
+
+Here are some example questions you can ask:
+- "What are the key features of this system?"
+- "How does the chunking algorithm work?"
+- "What technology stack is used?"
+- "What are the usage instructions?"
+
+## Conclusion
+
+This RAG system demonstrates how to combine document processing, vector search, and large language models to create an intelligent document analysis tool. The modular architecture allows for easy extension and customization based on specific use cases.
+
+## Additional Details
+
+The system handles various document types and can be extended to support additional formats. The vector database provides fast similarity search capabilities, while the chunking algorithm ensures that context is preserved across document segments.
+
+For technical support or questions about implementation, refer to the API documentation and code examples provided in the repository.

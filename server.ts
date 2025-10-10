@@ -1,6 +1,5 @@
 import app from './app'
 import config from './config'
-import mongooseInit from './init/database'
 import logger from './utils/logger'
 
 const PORT = config.PORT ?? 8080
@@ -19,21 +18,6 @@ process.on('uncaughtException', (err) => {
   })
   process.exit(1)
 })
-
-mongooseInit()
-  .then(() => {
-    logger.info('DB Connected!')
-  })
-  .catch((err: unknown) => {
-    const error = err as Error
-    logger.error('DB Failed to connect -', {
-      meta: {
-        name: error.name,
-        message: error.message,
-      },
-    })
-    process.exit(1)
-  })
 
 const listen = app.listen(PORT, log)
 

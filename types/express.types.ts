@@ -5,6 +5,20 @@ import type {
   RequestHandler,
 } from 'express'
 
+// Extend Express Request to include user
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string
+        email: string
+        name: string
+      }
+    }
+  }
+}
+
 export type ECoreReq = ExpressRequest
 
 export type ERes = ExpressResponse
