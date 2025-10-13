@@ -1,0 +1,16 @@
+{
+  "userId": "e321ef8d-d435-401e-8c75-037586e03736",
+  "name": "Aks",
+  "description": "dddd",
+  "systemPrompt": "dfdfdfdfg",
+  "documentIds": [],
+  "config": {
+    "temperature": 0.7,
+    "maxTokens": 2048,
+    "model": "gpt-3.5-turbo"
+  },
+  "isActive": false,
+  "createdAt": "2025-10-13T12:45:48.148Z",
+  "updatedAt": "2025-10-13T12:46:08.392Z",
+  "id": "b359a49e-1651-4bdb-a44e-8b13f936d54f"
+}

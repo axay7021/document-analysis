@@ -18,6 +18,10 @@ const config = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY as string,
   GOOGLE_GENAI_API_KEY: process.env.GOOGLE_GENAI_API_KEY as string,
 
+  // Authentication
+  JWT_SECRET:
+    process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
+
   // File Storage
   DATA_STORAGE_PATH: process.env.DATA_STORAGE_PATH || './data/storage',
   FAISS_INDEX_PATH: process.env.FAISS_INDEX_PATH || './data/faiss',

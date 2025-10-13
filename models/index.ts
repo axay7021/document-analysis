@@ -1,11 +1,14 @@
 // File Storage Service (replaces MongoDB models)
 import { FileStorage } from '../services/fileStorage.service'
 import {
+  Agent,
   ChatSession,
   Chunk,
   Document,
   DocumentGroup,
   SystemPrompt,
+  User,
+  UserSession,
 } from '../types/types'
 
 // Create a singleton instance
@@ -17,6 +20,10 @@ export const DocumentModel = {
   find: (): Document[] => storage.getAllDocuments(),
   findOne: (filter: { id: string }): Document | null =>
     storage.getDocument(filter.id),
+  findOneAndUpdate: (
+    filter: { id: string },
+    update: Partial<Document>
+  ): Document | null => storage.updateDocument(filter.id, update),
   deleteOne: (filter: { id: string }): { deletedCount: number } => {
     const deleted = storage.deleteDocument(filter.id)
     return { deletedCount: deleted ? 1 : 0 }
@@ -100,6 +107,50 @@ export const DocumentGroupModel = {
       }
     })
     return updatedGroups
+  },
+}
+
+export const UserModel = {
+  create: (user: Omit<User, 'id'>): User => storage.saveUser(user),
+  findById: (id: string): User | null => storage.getUser(id),
+  findByEmail: (email: string): User | null => storage.getUserByEmail(email),
+  findOneAndUpdate: (
+    filter: { id: string },
+    update: Partial<User>
+  ): User | null => storage.updateUser(filter.id, update),
+  find: (): User[] => storage.getAllUsers(),
+}
+
+export const AgentModel = {
+  create: (agent: Omit<Agent, 'id'>): Agent => storage.saveAgent(agent),
+  findById: (id: string): Agent | null => storage.getAgent(id),
+  findByUserId: (userId: string): Agent[] => storage.getAgentsByUserId(userId),
+  findOneAndUpdate: (
+    filter: { id: string },
+    update: Partial<Agent>
+  ): Agent | null => storage.updateAgent(filter.id, update),
+  find: (): Agent[] => storage.getAllAgents(),
+  deleteOne: (filter: { id: string }): { deletedCount: number } => {
+    const deleted = storage.deleteAgent(filter.id)
+    return { deletedCount: deleted ? 1 : 0 }
+  },
+}
+
+export const UserSessionModel = {
+  create: (session: Omit<UserSession, 'id'>): UserSession =>
+    storage.saveUserSession(session),
+  findById: (id: string): UserSession | null => storage.getUserSession(id),
+  findByToken: (token: string): UserSession | null =>
+    storage.getUserSessionByToken(token),
+  findByUserId: (userId: string): UserSession[] =>
+    storage.getUserSessionsByUserId(userId),
+  findOneAndUpdate: (
+    filter: { id: string },
+    update: Partial<UserSession>
+  ): UserSession | null => storage.updateUserSession(filter.id, update),
+  deleteOne: (filter: { id: string }): { deletedCount: number } => {
+    const deleted = storage.deleteUserSession(filter.id)
+    return { deletedCount: deleted ? 1 : 0 }
   },
 }
 

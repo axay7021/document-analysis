@@ -12,8 +12,10 @@ declare global {
     interface Request {
       user?: {
         id: string
-        email: string
-        name: string
+        email?: string
+        name?: string
+        sessionId?: string
+        token?: string
       }
     }
   }

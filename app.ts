@@ -6,7 +6,7 @@ import app from './middlewares/middleware'
 import routes from './routes/routes'
 import httpError from './utils/httpError'
 
-app.use('/api/v1', routes)
+app.use('/api', routes)
 
 // 404 Handler :  IF NO ROUTES MATCHING ABOVE THAN IT WILL DISPLAY BELOW ROUTE
 app.use((req: Request, _: Response, next: NextFunction) => {

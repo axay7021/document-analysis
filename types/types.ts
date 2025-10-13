@@ -23,15 +23,58 @@ export interface THttpError {
   trace?: object | null
 }
 
-// Document Analysis Types
+// User Management Types
+export interface User {
+  id: string
+  email: string
+  password: string // hashed
+  firstName: string
+  lastName: string
+  createdAt: Date
+  updatedAt: Date
+  isActive: boolean
+  lastLoginAt?: Date
+}
+
+export interface UserSession {
+  id: string
+  userId: string
+  token: string
+  expiresAt: Date
+  createdAt: Date
+  isActive: boolean
+}
+
+// Agent Management Types
+export interface Agent {
+  id: string
+  userId: string
+  name: string
+  description?: string
+  systemPrompt: string
+  role?: string
+  documentIds: string[] // Associated documents
+  config?: {
+    temperature?: number
+    maxTokens?: number
+    model?: string
+  }
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+// Enhanced Document Types
 export interface Document {
   id: string
+  userId: string // Owner of the document
+  agentIds: string[] // Agents that can access this document
   name: string
   content: string
   type: 'pdf' | 'text'
   uploadedAt: Date
+  updatedAt: Date
   size: number
-  groupId?: string
   metadata?: Record<string, unknown>
 }
 
@@ -57,10 +100,10 @@ export interface ChatMessage {
 
 export interface ChatSession {
   id: string
+  userId: string
+  agentId: string // Selected agent for this chat
   title: string
-  documentIds: string[]
   messages: ChatMessage[]
-  systemPrompt?: string
   createdAt: Date
   updatedAt: Date
   isActive: boolean
@@ -80,11 +123,31 @@ export interface SystemPrompt {
 
 export interface DocumentGroup {
   id: string
+  userId: string
   name: string
   description?: string
   documentIds: string[]
   createdAt: Date
   updatedAt: Date
+}
+
+// Authentication Types
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+export interface RegisterRequest {
+  email: string
+  password: string
+  firstName: string
+  lastName: string
+}
+
+export interface AuthResponse {
+  user: Omit<User, 'password'>
+  token: string
+  expiresAt: Date
 }
 
 export interface EmbeddingModel {

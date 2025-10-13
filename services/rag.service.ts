@@ -38,9 +38,9 @@ export class RAGService {
   /**
    * Initialize the RAG service
    */
-  async initialize(): Promise<void> {
+  initialize(): void {
     try {
-      await this.vectorService.initialize()
+      this.vectorService.initialize()
       this.isInitialized = true
       logger.info('RAG service initialized successfully')
     } catch (error) {
@@ -69,7 +69,7 @@ export class RAGService {
       const maxChunks = request.retrievalConfig?.maxChunks || 5
       const minScore = request.retrievalConfig?.minScore || 0.7
 
-      const relevantChunks = await this.vectorService.searchSimilar(
+      const relevantChunks = this.vectorService.searchSimilar(
         queryEmbedding,
         maxChunks,
         minScore

@@ -8,6 +8,8 @@ import { DocumentIngestionService } from './documentIngestion.service'
 import { FileStorage } from './fileStorage.service'
 
 export interface UploadOptions {
+  userId: string
+  agentIds?: string[]
   groupId?: string
   processDocument?: boolean
   validateFile?: boolean
@@ -34,9 +36,14 @@ export class UploadService {
    */
   async processUpload(
     file: UploadedFile,
-    options: UploadOptions = {}
+    options: UploadOptions
   ): Promise<UploadResult> {
-    const { groupId, processDocument = true, validateFile = true } = options
+    const {
+      userId,
+      agentIds = [],
+      processDocument = true,
+      validateFile = true,
+    } = options
 
     try {
       // Validate file if requested
@@ -46,12 +53,14 @@ export class UploadService {
 
       // Create document record
       const document: Omit<Document, 'id'> = {
+        userId,
+        agentIds,
         name: file.originalname,
         content: '', // Will be filled by ingestion service
         type: this.determineDocumentType(file.originalname),
         uploadedAt: new Date(),
+        updatedAt: new Date(),
         size: file.size,
-        groupId: groupId || undefined,
         metadata: {
           filePath: file.path,
           mimeType: file.mimetype,
@@ -108,7 +117,7 @@ export class UploadService {
    */
   async processMultipleUploads(
     files: UploadedFile[],
-    options: UploadOptions = {}
+    options: UploadOptions
   ): Promise<UploadResult[]> {
     const results: UploadResult[] = []
 

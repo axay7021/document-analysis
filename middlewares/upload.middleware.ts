@@ -5,7 +5,7 @@ import path from 'path'
 // Storage configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/')
+    cb(null, 'uploads/documents') // Ensure this directory exists
   },
   filename: (req, file, cb) => {
     // Generate unique filename with timestamp
@@ -28,7 +28,11 @@ const fileFilter = (
   if (allowedTypes.includes(fileExt)) {
     cb(null, true)
   } else {
-    cb(new Error('Only PDF, TXT, and MD files are allowed'))
+    cb(
+      new Error(
+        `File type ${fileExt} not allowed. Only PDF, TXT, and MD files are supported.`
+      )
+    )
   }
 }
 
@@ -38,13 +42,13 @@ const upload = multer({
   fileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB
-    files: 1, // Single file upload
+    files: 10, // Allow up to 10 files
   },
 })
 
 // Export middleware functions
 export const uploadSingle = upload.single('document')
-export const uploadMultiple = upload.array('documents', 5) // Max 5 files
+export const uploadMultiple = upload.array('documents', 10) // Max 10 files (consistent with limits)
 export const uploadFields = upload.fields([
   { name: 'document', maxCount: 1 },
   { name: 'metadata', maxCount: 1 },

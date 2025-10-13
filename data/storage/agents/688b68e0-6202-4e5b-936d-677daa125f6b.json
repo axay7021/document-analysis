@@ -1,0 +1,16 @@
+{
+  "userId": "e321ef8d-d435-401e-8c75-037586e03736",
+  "name": "",
+  "description": "",
+  "systemPrompt": "",
+  "documentIds": [],
+  "config": {
+    "temperature": 0.7,
+    "maxTokens": 2048,
+    "model": "gpt-3.5-turbo"
+  },
+  "isActive": true,
+  "createdAt": "2025-10-13T11:51:09.382Z",
+  "updatedAt": "2025-10-13T12:46:29.207Z",
+  "id": "688b68e0-6202-4e5b-936d-677daa125f6b"
+}
