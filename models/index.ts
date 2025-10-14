@@ -59,12 +59,25 @@ export const ChunkModel = {
 export const ChatSessionModel = {
   create: (session: Omit<ChatSession, 'id'>): ChatSession =>
     storage.saveChatSession(session),
-  find: (filter: { documentIds?: { $in: string[] } } = {}): ChatSession[] => {
+  find: (
+    filter: { documentIds?: { $in: string[] }; userId?: string } = {}
+  ): ChatSession[] => {
     if (filter.documentIds?.$in) {
       // Find sessions that include any of the document IDs
       return storage.getChatSessionsByDocumentId(filter.documentIds.$in[0])
     }
-    return []
+
+    // Get all chat sessions and filter by userId if provided
+    const allSessions = storage.getAllChatSessions()
+
+    if (filter.userId) {
+      return allSessions.filter(
+        (session: ChatSession) => session.userId === filter.userId
+      )
+    }
+
+    // Return all sessions if no specific filter is provided
+    return allSessions
   },
   findOne: (filter: { id: string }): ChatSession | null =>
     storage.getChatSession(filter.id),

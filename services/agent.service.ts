@@ -1,6 +1,7 @@
 import { AgentModel, DocumentModel } from '../models'
 import type { Agent, Document } from '../types/types'
 import logger from '../utils/logger'
+import { DocumentIngestionService } from './documentIngestion.service'
 import { UploadService } from './upload.service'
 
 export interface CreateAgentRequest {
@@ -33,9 +34,11 @@ export interface UpdateAgentRequest {
 
 export class AgentService {
   public uploadService: UploadService
+  private ingestionService: DocumentIngestionService
 
   constructor() {
     this.uploadService = new UploadService()
+    this.ingestionService = new DocumentIngestionService()
   }
 
   /**
@@ -211,6 +214,23 @@ export class AgentService {
   }
 
   /**
+   * Find agent by name (for @mentions)
+   */
+  getAgentByName(agentName: string, userId: string): Agent | null {
+    try {
+      const userAgents = AgentModel.findByUserId(userId)
+      return (
+        userAgents.find(
+          (agent) => agent.name.toLowerCase() === agentName.toLowerCase()
+        ) || null
+      )
+    } catch (error) {
+      logger.error('Error finding agent by name:', error)
+      return null
+    }
+  }
+
+  /**
    * Update an existing agent with document management
    */
   updateAgent(
@@ -284,6 +304,16 @@ export class AgentService {
                     fileError
                   )
                 }
+              }
+
+              // Delete document chunks from vector database
+              try {
+                this.ingestionService.deleteDocumentChunks(docId)
+              } catch (chunkError) {
+                logger.warn(
+                  `Failed to delete chunks for document ${docId}:`,
+                  chunkError
+                )
               }
 
               // Delete the document record
@@ -369,6 +399,16 @@ export class AgentService {
       )
 
       for (const document of documentsToDelete) {
+        // Delete document chunks from vector database
+        try {
+          this.ingestionService.deleteDocumentChunks(document.id)
+        } catch (chunkError) {
+          logger.warn(
+            `Failed to delete chunks for document ${document.id}:`,
+            chunkError
+          )
+        }
+
         // Hard delete the document since it's only associated with this agent
         DocumentModel.deleteOne({ id: document.id })
 
@@ -420,6 +460,16 @@ export class AgentService {
         // Check if document has any active agent associations
         if (document.agentIds.length === 0) {
           logger.info(`Cleaning up orphaned document: ${document.id}`)
+
+          // Delete document chunks from vector database
+          try {
+            this.ingestionService.deleteDocumentChunks(document.id)
+          } catch (chunkError) {
+            logger.warn(
+              `Failed to delete chunks for orphaned document ${document.id}:`,
+              chunkError
+            )
+          }
 
           // Delete the physical file
           if (document.metadata?.filePath) {

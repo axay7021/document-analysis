@@ -77,14 +77,15 @@ export class UploadService {
       // Process document if requested
       if (processDocument) {
         try {
-          await this.ingestionService.processDocument(savedDocument)
+          // Use full ingestion pipeline instead of just text extraction
+          const chunksWithEmbeddings =
+            await this.ingestionService.ingestDocument(savedDocument)
           processed = true
+          chunks = chunksWithEmbeddings.length
 
-          // Get chunk count for response
-          const documentChunks = this.storage.getChunksByDocumentId(
-            savedDocument.id
+          logger.info(
+            `Document processed successfully: ${savedDocument.id}, ${chunks} chunks created`
           )
-          chunks = documentChunks.length
         } catch (error) {
           logger.error(`Failed to process document ${savedDocument.id}:`, error)
           // Don't fail the upload, just mark as not processed

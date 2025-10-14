@@ -240,6 +240,49 @@ export class VectorDatabaseService {
   }
 
   /**
+   * Delete vectors by document ID
+   * Note: FAISS doesn't support efficient deletion, so this recreates the index
+   */
+  deleteVectorsByDocumentId(documentId: string): void {
+    if (!this.index || !this.isInitialized) {
+      throw new Error('Vector database not initialized')
+    }
+
+    try {
+      // Get all chunks that don't belong to this document
+      const fileStorage = new FileStorage()
+      const allDocuments = fileStorage.getAllDocuments()
+      const remainingChunks: Chunk[] = []
+
+      // Collect all chunks from documents that are not being deleted
+      for (const doc of allDocuments) {
+        if (doc.id !== documentId) {
+          const chunks = fileStorage.getChunksByDocumentId(doc.id)
+          remainingChunks.push(...chunks)
+        }
+      }
+
+      // Recreate the index with remaining chunks
+      this.index = new IndexFlatIP(1536)
+      this.chunkIdMap.clear()
+
+      if (remainingChunks.length > 0) {
+        this.addVectors(remainingChunks)
+      }
+
+      logger.info(
+        `Deleted vectors for document ${documentId}, ${remainingChunks.length} vectors remaining`
+      )
+    } catch (error) {
+      logger.error(
+        `Failed to delete vectors for document ${documentId}:`,
+        error
+      )
+      throw error
+    }
+  }
+
+  /**
    * Get database statistics
    */
   getStats(): { totalVectors: number; mappingsCount: number } {

@@ -6,6 +6,11 @@ import app from './middlewares/middleware'
 import routes from './routes/routes'
 import httpError from './utils/httpError'
 
+// handle cors errors preflight request
+app.options('*', (_req: Request, res: Response) => {
+  res.sendStatus(200)
+})
+
 app.use('/api', routes)
 
 // 404 Handler :  IF NO ROUTES MATCHING ABOVE THAN IT WILL DISPLAY BELOW ROUTE

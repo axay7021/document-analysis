@@ -101,7 +101,7 @@ export interface ChatMessage {
 export interface ChatSession {
   id: string
   userId: string
-  agentId: string // Selected agent for this chat
+  agentId?: string | null // Optional default agent for this chat (agents can be tagged per message)
   title: string
   messages: ChatMessage[]
   createdAt: Date

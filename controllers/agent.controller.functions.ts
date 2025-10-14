@@ -1,11 +1,6 @@
 import type { Request, Response } from 'express'
 
-import type {
-  AgentIdParams,
-  AssociateDocumentRequest,
-  RemoveDocumentParams,
-  UpdateAgentRequest,
-} from '../schemas/agent.schema'
+import type { AgentIdParams, UpdateAgentRequest } from '../schemas/agent.schema'
 import {
   AgentService,
   type CreateAgentRequest,
@@ -265,22 +260,46 @@ export const updateAgent = async (req: Request, res: Response) => {
     }
 
     // Determine final document list based on user intention:
-    // 1. If files are uploaded: REPLACE ALL existing documents with new uploaded ones
-    // 2. If documentIds provided (but no files): use only those documentIds (allows selective removal)
-    // 3. If neither files nor documentIds provided: REMOVE ALL documents from agent
+    // 1. If both files and documentIds provided: MERGE both (keep existing + add new)
+    // 2. If only files uploaded: ADD to existing documents (append new files)
+    // 3. If only documentIds provided: REPLACE with those documentIds
+    // 4. If neither provided: REMOVE ALL documents from agent
     let shouldUpdateDocuments = files.length > 0 || documentIds !== undefined
 
-    if (files.length > 0) {
-      // Files uploaded: REPLACE ALL existing documents with new uploaded documents
-      // finalDocumentIds already contains the uploaded document IDs
-      logger.info('Replacing all existing documents with uploaded files:', {
-        uploadedCount: finalDocumentIds.length,
-        newDocumentIds: finalDocumentIds,
+    if (files.length > 0 && documentIds !== undefined) {
+      // Both files and documentIds provided: MERGE both lists
+      const combinedIds = [...documentIds, ...finalDocumentIds]
+      // Remove duplicates while preserving order
+      finalDocumentIds = Array.from(new Set(combinedIds))
+      logger.info('Merging provided documentIds with uploaded files:', {
+        providedDocumentIds: documentIds,
+        uploadedDocumentIds: finalDocumentIds.filter(
+          (id) => !documentIds.includes(id)
+        ),
+        finalCount: finalDocumentIds.length,
+        finalDocumentIds: finalDocumentIds,
+      })
+    } else if (files.length > 0) {
+      // Only files uploaded: ADD to existing documents (don't replace)
+      const existingAgent = agentService.getAgentById(agentId, req.user.id)
+      if (existingAgent) {
+        const existingDocIds = existingAgent.documentIds
+        const combinedIds = [...existingDocIds, ...finalDocumentIds]
+        // Remove duplicates while preserving order
+        finalDocumentIds = Array.from(new Set(combinedIds))
+      }
+      logger.info('Adding uploaded files to existing documents:', {
+        existingCount: existingAgent?.documentIds.length || 0,
+        newUploadedCount: finalDocumentIds.filter(
+          (id) => !existingAgent?.documentIds.includes(id)
+        ).length,
+        finalCount: finalDocumentIds.length,
+        finalDocumentIds: finalDocumentIds,
       })
     } else if (documentIds !== undefined) {
-      // No files but documentIds provided: use only the provided document IDs
+      // Only documentIds provided: REPLACE with those document IDs
       finalDocumentIds = [...documentIds]
-      logger.info('Using provided documentIds (selective update):', {
+      logger.info('Replacing with provided documentIds only:', {
         documentIdsCount: finalDocumentIds.length,
         documentIds: finalDocumentIds,
       })
@@ -389,169 +408,5 @@ export const deleteAgent = (req: Request<AgentIdParams>, res: Response) => {
   } catch (error) {
     logger.error('Failed to delete agent:', error)
     httpResponse(req, res, 500, 'Failed to delete agent')
-  }
-}
-
-/**
- * Associate a document with an agent
- */
-export const associateDocument = (
-  req: Request<AgentIdParams, unknown, AssociateDocumentRequest>,
-  res: Response
-) => {
-  try {
-    if (!req.user?.id) {
-      httpResponse(req, res, 401, 'Authentication required')
-      return
-    }
-
-    const { agentId } = req.params
-    const { documentId } = req.body
-
-    const success = agentService.associateDocument(
-      agentId,
-      req.user.id,
-      documentId
-    )
-
-    if (!success) {
-      httpResponse(
-        req,
-        res,
-        404,
-        'Agent not found, document not found, or access denied'
-      )
-      return
-    }
-
-    logger.info('Document associated with agent successfully', {
-      agentId,
-      documentId,
-      userId: req.user.id,
-    })
-
-    httpResponse(req, res, 200, 'Document associated successfully')
-  } catch (error) {
-    logger.error('Failed to associate document:', error)
-    httpResponse(req, res, 500, 'Failed to associate document')
-  }
-}
-
-/**
- * Remove document association from an agent
- */
-export const removeDocumentAssociation = (
-  req: Request<RemoveDocumentParams>,
-  res: Response
-) => {
-  try {
-    if (!req.user?.id) {
-      httpResponse(req, res, 401, 'Authentication required')
-      return
-    }
-
-    const { agentId, documentId } = req.params
-
-    const success = agentService.removeDocumentAssociation(
-      agentId,
-      req.user.id,
-      documentId
-    )
-
-    if (!success) {
-      httpResponse(req, res, 404, 'Agent not found or access denied')
-      return
-    }
-
-    logger.info('Document association removed successfully', {
-      agentId,
-      documentId,
-      userId: req.user.id,
-    })
-
-    httpResponse(req, res, 200, 'Document association removed successfully')
-  } catch (error) {
-    logger.error('Failed to remove document association:', error)
-    httpResponse(req, res, 500, 'Failed to remove document association')
-  }
-}
-
-/**
- * Get all documents associated with an agent
- */
-export const getAgentDocuments = (
-  req: Request<AgentIdParams>,
-  res: Response
-) => {
-  try {
-    if (!req.user?.id) {
-      httpResponse(req, res, 401, 'Authentication required')
-      return
-    }
-
-    const { agentId } = req.params
-    const documents = agentService.getAgentDocuments(agentId, req.user.id)
-
-    httpResponse(req, res, 200, 'Agent documents retrieved successfully', {
-      documents,
-      total: documents.length,
-    })
-  } catch (error) {
-    logger.error('Failed to get agent documents:', error)
-    httpResponse(req, res, 500, 'Failed to retrieve agent documents')
-  }
-}
-
-/**
- * Get agent context (agent + documents) for chat
- */
-export const getAgentContext = (req: Request<AgentIdParams>, res: Response) => {
-  try {
-    if (!req.user?.id) {
-      httpResponse(req, res, 401, 'Authentication required')
-      return
-    }
-
-    const { agentId } = req.params
-    const context = agentService.getAgentContext(agentId, req.user.id)
-
-    if (!context) {
-      httpResponse(req, res, 404, 'Agent not found or access denied')
-      return
-    }
-
-    httpResponse(req, res, 200, 'Agent context retrieved successfully', {
-      context,
-    })
-  } catch (error) {
-    logger.error('Failed to get agent context:', error)
-    httpResponse(req, res, 500, 'Failed to retrieve agent context')
-  }
-}
-
-/**
- * Get agent with complete context for AI interactions
- */
-export const getAgentForAI = (req: Request<AgentIdParams>, res: Response) => {
-  try {
-    if (!req.user?.id) {
-      httpResponse(req, res, 401, 'Authentication required')
-      return
-    }
-
-    const { agentId } = req.params
-    const aiContext = agentService.getAgentForAI(agentId, req.user.id)
-
-    if (!aiContext) {
-      httpResponse(req, res, 404, 'Agent not found or access denied')
-      return
-    }
-
-    httpResponse(req, res, 200, 'Agent AI context retrieved successfully', {
-      ...aiContext,
-    })
-  } catch (error) {
-    logger.error('Failed to get agent for AI:', error)
-    httpResponse(req, res, 500, 'Failed to retrieve agent for AI')
   }
 }

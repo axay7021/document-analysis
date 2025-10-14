@@ -2,9 +2,8 @@ import Joi from 'joi'
 
 // Create chat session validation
 export const createChatSessionSchema = Joi.object({
-  agentId: Joi.string().trim().required().messages({
-    'string.empty': 'Agent ID is required',
-    'any.required': 'Agent ID is required',
+  agentId: Joi.string().trim().optional().messages({
+    'string.empty': 'Agent ID cannot be empty',
   }),
   title: Joi.string().trim().max(200).optional().messages({
     'string.max': 'Title must not exceed 200 characters',
@@ -19,6 +18,13 @@ export const sendMessageSchema = Joi.object({
     'string.max': 'Message must not exceed 5000 characters',
     'any.required': 'Message is required',
   }),
+  agentId: Joi.string()
+    .uuid({ version: 'uuidv4' })
+    .allow('', null)
+    .optional()
+    .messages({
+      'string.guid': 'Agent ID must be a valid UUID',
+    }),
 }).unknown(false)
 
 // Update chat session title validation

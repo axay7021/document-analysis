@@ -60,9 +60,18 @@ export class RAGService {
     const startTime = Date.now()
 
     try {
+      // Validate request message
+      if (
+        !request.message ||
+        typeof request.message !== 'string' ||
+        request.message.trim() === ''
+      ) {
+        throw new Error('Invalid or empty message provided')
+      }
+
       // 1. Generate embedding for the user's question
       const queryEmbedding = await this.embeddingService.generateEmbedding(
-        request.message
+        request.message.trim()
       )
 
       // 2. Search for relevant chunks
@@ -96,11 +105,11 @@ export class RAGService {
         filteredChunks[0]?.chunk?.metadata?.documentType as 'pdf' | 'text'
       )
 
-      // 4. Construct the prompt with context
+      // 4. Construct the prompt with context (truncate content to manage token limits)
       const contextText = filteredChunks
         .map(
           (result, index) =>
-            `[Context ${index + 1}] (from ${String(result.chunk?.metadata?.documentName) || 'unknown'}):\n${result.chunk?.content || ''}\n`
+            `[Context ${index + 1}] (from ${String(result.chunk?.metadata?.documentName) || 'unknown'}):\n${(result.chunk?.content || '').substring(0, 200)}\n`
         )
         .join('\n')
 
@@ -144,6 +153,201 @@ export class RAGService {
       logger.error('RAG response generation failed:', error)
       throw new Error(
         `Failed to generate response: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
+  }
+
+  /**
+   * Generate streaming response using RAG with real-time chunks
+   */
+  async generateStreamingResponse(
+    request: RAGRequest,
+    onChunk: (chunk: {
+      type: 'chunk' | 'complete' | 'error'
+      content: string
+      sources?: Array<{
+        documentId: string
+        documentName: string
+        chunkId: string
+        relevanceScore: number
+      }>
+    }) => void
+  ): Promise<RAGResponse> {
+    if (!this.isInitialized) {
+      throw new Error('RAG service not initialized')
+    }
+
+    const startTime = Date.now()
+
+    try {
+      // Validate request message
+      if (
+        !request.message ||
+        typeof request.message !== 'string' ||
+        request.message.trim() === ''
+      ) {
+        throw new Error('Invalid or empty message provided')
+      }
+
+      // 1. Generate embedding for the user's question
+      const queryEmbedding = await this.embeddingService.generateEmbedding(
+        request.message.trim()
+      )
+      console.log(queryEmbedding, 'queryEmbedding')
+
+      // 2. Search for relevant chunks
+      const maxChunks = request.retrievalConfig?.maxChunks || 5
+      const minScore = request.retrievalConfig?.minScore || 0.7
+
+      console.log('Search parameters:', {
+        maxChunks,
+        minScore,
+        configMinScore: request.retrievalConfig?.minScore,
+      })
+
+      // Check vector service state
+      const vectorStats = this.vectorService.getStats()
+      console.log('Vector service stats before search:', vectorStats)
+      console.log('Vector service initialized?', this.isInitialized)
+
+      // Force re-initialize if no vectors
+      if (vectorStats.totalVectors === 0) {
+        console.log('No vectors found, re-initializing...')
+        this.vectorService.initialize()
+        const newStats = this.vectorService.getStats()
+        console.log('After re-init stats:', newStats)
+      }
+
+      const relevantChunks = this.vectorService.searchSimilar(
+        queryEmbedding,
+        maxChunks,
+        minScore
+      )
+      logger.info('Relevant chunks found', { count: relevantChunks.length })
+      console.log(relevantChunks, 'relevantChunks')
+
+      // Filter chunks by document IDs if specified
+      const filteredChunks = relevantChunks.filter((result) =>
+        request.docIds.includes(result.chunk?.documentId || '')
+      )
+
+      if (filteredChunks.length === 0) {
+        // No relevant chunks found
+        const fallbackAnswer =
+          "I couldn't find relevant information in the provided documents to answer your question. Could you please rephrase or provide more context?"
+
+        onChunk({
+          type: 'complete',
+          content: fallbackAnswer,
+          sources: [],
+        })
+
+        return {
+          answer: fallbackAnswer,
+          referencedChunks: [],
+        }
+      }
+
+      console.log(filteredChunks, 'filteredChunks')
+      console.log(
+        request.systemPromptId,
+        request.customSystemPrompt,
+        filteredChunks[0]?.chunk?.metadata?.documentType as 'pdf' | 'text'
+      )
+
+      // 3. Get system prompt
+      const systemPrompt = this.getSystemPrompt(
+        request.systemPromptId,
+        request.customSystemPrompt,
+        filteredChunks[0]?.chunk?.metadata?.documentType as 'pdf' | 'text'
+      )
+      console.log(systemPrompt, 'systemPrompt')
+
+      // 4. Construct the prompt with context (truncated to fit token limits)
+      const maxChunkLength = 500 // Limit each chunk to 500 characters
+      const contextText = filteredChunks
+        .map((result, index) => {
+          const chunkContent = result.chunk?.content || ''
+          const truncatedContent =
+            chunkContent.length > maxChunkLength
+              ? chunkContent.substring(0, maxChunkLength) + '...'
+              : chunkContent
+
+          return `Document ${index + 1} (${result.chunk?.metadata?.documentName || 'Unknown'}): ${truncatedContent}`
+        })
+        .join('\n\n')
+
+      const userMessage = `Context:\n${contextText}\n\nQuestion: ${request.message}`
+
+      // 5. Stream response from OpenAI (use gpt-3.5-turbo for better token efficiency)
+      const stream = await this.openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
+        ],
+        stream: true,
+        temperature: 0.7,
+        // eslint-disable-next-line camelcase
+        max_tokens: 1000,
+      })
+
+      let fullResponse = ''
+
+      // Stream chunks to the callback
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || ''
+        if (content) {
+          fullResponse += content
+          onChunk({
+            type: 'chunk',
+            content: content,
+          })
+        }
+      }
+
+      // Send completion signal with sources
+      const sources = filteredChunks.map((result) => ({
+        documentId: result.chunk?.documentId || '',
+        documentName:
+          (result.chunk?.metadata?.documentName as string) ||
+          'Unknown Document',
+        chunkId: result.chunkId,
+        relevanceScore: result.score,
+      }))
+
+      onChunk({
+        type: 'complete',
+        content: '',
+        sources,
+      })
+
+      const processingTime = Date.now() - startTime
+
+      logger.info('Streaming RAG response completed', {
+        chunksUsed: filteredChunks.length,
+        responseLength: fullResponse.length,
+        processingTime,
+      })
+
+      return {
+        answer: fullResponse,
+        referencedChunks: filteredChunks.map((result) => ({
+          chunkId: result.chunkId,
+          score: result.score,
+          content: result.chunk?.content || '',
+        })),
+      }
+    } catch (error) {
+      logger.error('Streaming RAG response generation failed:', error)
+
+      onChunk({
+        type: 'error',
+        content: 'Failed to generate response',
+      })
+
+      throw new Error(
+        `Failed to generate streaming response: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
     }
   }

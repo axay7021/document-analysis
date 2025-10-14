@@ -4,18 +4,29 @@ import { v4 as uuidv4 } from 'uuid'
 import type { Chunk, Document, EmbeddingModel } from '../types/types'
 import { EmbeddingService } from './embedding.service'
 import { FileStorage } from './fileStorage.service'
+import { VectorDatabaseService } from './vectorDatabase.service'
 
 export class DocumentIngestionService {
   private embeddingService: EmbeddingService
   private storage: FileStorage
+  private vectorDb: VectorDatabaseService
   private chunkSize: number
   private overlapSize: number
 
   constructor(embeddingModel?: EmbeddingModel) {
     this.embeddingService = new EmbeddingService(embeddingModel)
     this.storage = new FileStorage()
+    this.vectorDb = new VectorDatabaseService()
     this.chunkSize = 2000 // Maximum characters per chunk
     this.overlapSize = 200 // Overlap between consecutive chunks
+
+    // Initialize vector database
+    try {
+      this.vectorDb.initialize()
+    } catch {
+      // Log error but don't fail constructor - vector DB is optional
+      // Error is handled in the vector database service
+    }
   }
 
   /**
@@ -24,31 +35,16 @@ export class DocumentIngestionService {
   async extractTextFromPDF(filePath: string): Promise<string> {
     try {
       const dataBuffer = fs.readFileSync(filePath)
-      const { parsePDF } = this.loadPDFParser()
-      const result = await parsePDF(dataBuffer)
-      return result
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
+      const pdfParse = require('pdf-parse')
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+      const result = await pdfParse(dataBuffer)
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return
+      return result.text
     } catch (error) {
       throw new Error(
         `Failed to extract text from PDF: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
-    }
-  }
-
-  /**
-   * Dynamic PDF parser loader to handle ES module issues
-   */
-  private loadPDFParser(): {
-    parsePDF: (buffer: Buffer) => Promise<string>
-  } {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
-      const pdfParse = require('pdf-parse')
-      return {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return
-        parsePDF: async (buffer: Buffer) => (await pdfParse(buffer)).text,
-      }
-    } catch {
-      throw new Error('Failed to load PDF parser')
     }
   }
 
@@ -198,11 +194,20 @@ export class DocumentIngestionService {
   }
 
   /**
-   * Save chunks to storage
+   * Save chunks to storage and add to vector database
    */
-  async saveChunks(chunks: Chunk[]): Promise<void> {
+  saveChunks(chunks: Chunk[]): void {
     try {
-      await this.storage.saveChunks(chunks)
+      // Save chunks to file storage
+      this.storage.saveChunks(chunks)
+
+      // Add chunks to vector database
+      try {
+        this.vectorDb.addVectors(chunks)
+      } catch {
+        // Vector DB is optional - log but don't fail
+        // Error handling is done in VectorDatabaseService
+      }
     } catch (error) {
       throw new Error(
         `Failed to save chunks: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -217,7 +222,10 @@ export class DocumentIngestionService {
     // 1. Extract text from document
     const text = await this.processDocument(document)
 
-    // 2. Chunk the text with overlap
+    // 2. Update document with extracted content
+    this.storage.updateDocument(document.id, { content: text })
+
+    // 3. Chunk the text with overlap
     const chunks = this.chunkText(
       text,
       document.id,
@@ -229,21 +237,30 @@ export class DocumentIngestionService {
       throw new Error('No text chunks generated from document')
     }
 
-    // 3. Generate embeddings for chunks
+    // 4. Generate embeddings for chunks
     const chunksWithEmbeddings = await this.generateEmbeddings(chunks)
 
-    // 4. Save chunks to database
-    await this.saveChunks(chunksWithEmbeddings)
+    // 5. Save chunks to database and vector store
+    this.saveChunks(chunksWithEmbeddings)
 
     return chunksWithEmbeddings
   }
 
   /**
-   * Delete all chunks for a document
+   * Delete all chunks for a document from storage and vector database
    */
-  async deleteDocumentChunks(documentId: string): Promise<void> {
+  deleteDocumentChunks(documentId: string): void {
     try {
-      await this.storage.deleteChunksByDocumentId(documentId)
+      // Delete from file storage
+      this.storage.deleteChunksByDocumentId(documentId)
+
+      // Delete from vector database
+      try {
+        this.vectorDb.deleteVectorsByDocumentId(documentId)
+      } catch {
+        // Vector DB is optional - continue even if deletion fails
+        // Error handling is done in VectorDatabaseService
+      }
     } catch (error) {
       throw new Error(
         `Failed to delete chunks for document ${documentId}: ${error instanceof Error ? error.message : 'Unknown error'}`

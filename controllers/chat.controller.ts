@@ -25,16 +25,16 @@ export class ChatController {
         return
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const { agentId, title } = req.body
 
-      if (!agentId) {
-        httpResponse(req, res, 400, 'Agent ID is required')
-        return
-      }
+      // agentId is now optional due to agent tagging system
 
       const requestData: CreateChatSessionRequest = {
         userId: req.user.id,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         agentId,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         title,
       }
 
@@ -65,7 +65,13 @@ export class ChatController {
         return
       }
 
+      console.log(req.user)
+
       const sessions = this.chatService.getUserChatSessions(req.user.id)
+
+      logger.info(
+        `Fetched ${sessions.length} chat sessions for user ${req.user.id}`
+      )
 
       httpResponse(req, res, 200, 'Chat sessions retrieved successfully', {
         sessions,
@@ -111,7 +117,8 @@ export class ChatController {
   }
 
   /**
-   * Send a message in a chat session
+   * Send a message in a chat session with streaming AI response
+   * Uses Server-Sent Events (SSE) for real-time streaming
    */
   public sendMessage = async (req: Request, res: Response) => {
     try {
@@ -121,7 +128,21 @@ export class ChatController {
       }
 
       const { sessionId } = req.params
-      const { message } = req.body
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const { message, agentId } = req.body
+
+      // Debug logging
+      logger.info('sendMessage request:', {
+        sessionId,
+        userId: req.user.id,
+        message:
+          typeof message === 'string'
+            ? message.substring(0, 50) + '...'
+            : message,
+        agentId,
+        hasMessage: !!message,
+        messageType: typeof message,
+      })
 
       if (!sessionId || !message) {
         httpResponse(req, res, 400, 'Session ID and message are required')
@@ -133,27 +154,73 @@ export class ChatController {
         return
       }
 
+      // Set up Server-Sent Events headers for streaming
+      res.setHeader('Content-Type', 'text/event-stream')
+      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Connection', 'keep-alive')
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      res.setHeader('Access-Control-Allow-Headers', 'Cache-Control')
+
+      // Normalize agentId - convert empty string to undefined
+      const normalizedAgentId =
+        typeof agentId === 'string' && agentId.trim() !== ''
+          ? agentId
+          : undefined
+
       const requestData: ChatMessageRequest = {
         sessionId,
         userId: req.user.id,
         message: message.trim(),
+        agentId: normalizedAgentId, // Support agent tagging
       }
 
-      const chatResponse = await this.chatService.sendMessage(requestData)
+      // Send initial message indicating streaming has started
+      res.write(
+        `data: ${JSON.stringify({ type: 'start', content: 'Processing your message...' })}\n\n`
+      )
 
-      httpResponse(req, res, 200, 'Message sent successfully', chatResponse)
+      // Use streaming service with callback for each chunk
+      await this.chatService.sendMessageWithStreaming(requestData, (chunk) => {
+        try {
+          // Send each chunk as SSE data
+          res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+        } catch (writeError) {
+          logger.error('Error writing SSE chunk:', writeError)
+        }
+      })
+
+      // Send final message and close connection
+      res.write(
+        `data: ${JSON.stringify({ type: 'end', content: 'Stream completed' })}\n\n`
+      )
+      res.end()
     } catch (error) {
-      logger.error('Error sending message:', error)
-      if (error instanceof Error) {
-        if (
-          error.message.includes('not found') ||
-          error.message.includes('access denied')
-        ) {
-          httpResponse(req, res, 404, error.message)
-          return
+      logger.error('Error sending streaming message:', error)
+
+      try {
+        // Send error through SSE if connection is still open
+        const errorMessage =
+          error instanceof Error ? error.message : 'Failed to send message'
+        res.write(
+          `data: ${JSON.stringify({ type: 'error', content: errorMessage })}\n\n`
+        )
+        res.end()
+      } catch (responseError) {
+        // Connection might be closed, send standard error response
+        logger.error('Error sending error response:', responseError)
+        if (!res.headersSent) {
+          if (error instanceof Error) {
+            if (
+              error.message.includes('not found') ||
+              error.message.includes('access denied')
+            ) {
+              httpResponse(req, res, 404, error.message)
+              return
+            }
+          }
+          httpResponse(req, res, 500, 'Failed to send message')
         }
       }
-      httpResponse(req, res, 500, 'Failed to send message')
     }
   }
 

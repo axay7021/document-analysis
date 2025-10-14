@@ -1,5 +1,9 @@
+import { createServer } from 'http'
+import { Server } from 'socket.io'
+
 import app from './app'
 import config from './config'
+import { ChatSocketService } from './services/chatSocket.service'
 import logger from './utils/logger'
 
 const PORT = config.PORT ?? 8080
@@ -19,7 +23,20 @@ process.on('uncaughtException', (err) => {
   process.exit(1)
 })
 
-const listen = app.listen(PORT, log)
+// Create HTTP server and integrate Socket.IO
+const server = createServer(app)
+const io = new Server(server, {
+  cors: {
+    origin: '*', // Configure this based on your frontend domain in production
+    methods: ['GET', 'POST'],
+  },
+})
+
+// Initialize chat socket service
+const chatSocketService = new ChatSocketService(io)
+chatSocketService.initialize()
+
+const listen = server.listen(PORT, log)
 
 // UNHANDLED REJECTION, WHEN FACE SOME PROGRAMMATIC ERROR
 process.on('unhandledRejection', (err: unknown) => {

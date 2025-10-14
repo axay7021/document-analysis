@@ -9,7 +9,7 @@ const router = Router()
 router.use('/auth', authRoutes)
 
 // Agent management routes
-router.use('/agents', agentRoutes)
+router.use('/prompts', agentRoutes)
 
 // Chat management routes
 router.use('/chat', chatRoutes)

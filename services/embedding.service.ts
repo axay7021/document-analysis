@@ -25,6 +25,11 @@ export class EmbeddingService {
    */
   async generateEmbedding(text: string): Promise<number[]> {
     try {
+      // Validate input text
+      if (!text || typeof text !== 'string') {
+        throw new Error('Text input is required and must be a string')
+      }
+
       // Truncate text if it exceeds model limits
       const truncatedText = this.truncateText(text)
 
@@ -67,6 +72,11 @@ export class EmbeddingService {
    * Truncate text to fit within model token limits
    */
   private truncateText(text: string): string {
+    // Validate input
+    if (!text || typeof text !== 'string') {
+      return ''
+    }
+
     // Rough estimate: 1 token ≈ 4 characters for English text
     const maxCharacters = (this.model.maxTokens || 8000) * 4
 

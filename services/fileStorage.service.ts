@@ -234,6 +234,28 @@ export class FileStorage {
     return sessions
   }
 
+  getAllChatSessions(): ChatSession[] {
+    const sessionsDir = path.join(this.dataPath, 'chatSessions')
+
+    if (!fs.existsSync(sessionsDir)) {
+      return []
+    }
+
+    const files = fs
+      .readdirSync(sessionsDir)
+      .filter((file) => file.endsWith('.json'))
+    const sessions: ChatSession[] = []
+
+    files.forEach((file) => {
+      const filePath = path.join(sessionsDir, file)
+      const data = fs.readFileSync(filePath, 'utf-8')
+      const session = JSON.parse(data) as ChatSession
+      sessions.push(session)
+    })
+
+    return sessions
+  }
+
   // System Prompt operations
   saveSystemPrompt(prompt: Omit<SystemPrompt, 'id'>): SystemPrompt {
     const id = uuidv4()
