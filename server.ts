@@ -3,6 +3,7 @@ import { Server } from 'socket.io'
 
 import app from './app'
 import config from './config'
+import { AppInitializationService } from './services/appInitialization.service'
 import { ChatSocketService } from './services/chatSocket.service'
 import logger from './utils/logger'
 
@@ -36,17 +37,31 @@ const io = new Server(server, {
 const chatSocketService = new ChatSocketService(io)
 chatSocketService.initialize()
 
-const listen = server.listen(PORT, log)
+// Initialize application before starting server
+const startServer = async () => {
+  try {
+    // Initialize all services including vector database
+    await AppInitializationService.initializeApp()
 
-// UNHANDLED REJECTION, WHEN FACE SOME PROGRAMMATIC ERROR
-process.on('unhandledRejection', (err: unknown) => {
-  const error = err as Error
-  logger.error('Uncaught Rejection! SHUTTING DOWN...', {
-    meta: {
-      name: error.name,
-      message: error.message,
-    },
-  })
+    const listen = server.listen(PORT, log)
 
-  listen.close(() => process.exit(1))
-})
+    // UNHANDLED REJECTION, WHEN FACE SOME PROGRAMMATIC ERROR
+    process.on('unhandledRejection', (err: unknown) => {
+      const error = err as Error
+      logger.error('Uncaught Rejection! SHUTTING DOWN...', {
+        meta: {
+          name: error.name,
+          message: error.message,
+        },
+      })
+
+      listen.close(() => process.exit(1))
+    })
+  } catch (error) {
+    logger.error('Failed to start server:', error)
+    process.exit(1)
+  }
+}
+
+// Start the server
+void startServer()

@@ -23,7 +23,7 @@ interface SendMessagePayload {
 }
 
 interface ChatStreamChunk {
-  type: 'chunk' | 'complete' | 'error'
+  type: 'chunk' | 'complete' | 'error' | 'message'
   content: string
   messageId?: string
   sources?: Array<{

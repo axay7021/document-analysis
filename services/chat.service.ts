@@ -75,9 +75,10 @@ export class ChatService {
 
       const sessionData: Omit<ChatSession, 'id'> = {
         userId: request.userId,
-        agentId: request.agentId || null, // Allow null for sessions without default agent
+        agentId: request.agentId || undefined, // Allow undefined for sessions without default agent
         title: sessionTitle,
         messages: [],
+        documentIds: [], // Initialize empty document IDs array
         createdAt: new Date(),
         updatedAt: new Date(),
         isActive: true,
@@ -243,8 +244,25 @@ export class ChatService {
         userMessage,
         assistantMessage,
       ]
+
+      // Generate session title if this is the first message or if session has default title
+      let sessionTitle = session.title
+      if (
+        session.messages.length === 0 || // First user message
+        session.title === 'New Chat Session' ||
+        session.title === 'Default Chat Session' ||
+        session.title.startsWith('Chat with')
+      ) {
+        sessionTitle = await this.generateSessionTitle(
+          request.message,
+          aiResponse.answer
+        )
+        logger.info(`Generated session title: "${sessionTitle}"`)
+      }
+
       const updatedSession = ChatSessionModel.save({
         ...session,
+        title: sessionTitle,
         messages: updatedMessages,
         updatedAt: new Date(),
       })
@@ -331,7 +349,7 @@ export class ChatService {
   async sendMessageWithStreaming(
     request: ChatMessageRequest,
     onChunk: (chunk: {
-      type: 'chunk' | 'complete' | 'error'
+      type: 'chunk' | 'complete' | 'error' | 'message'
       content: string
       messageId?: string
       sources?: Array<{
@@ -358,6 +376,8 @@ export class ChatService {
           targetAgentId,
           request.userId
         )
+
+        console.log(agentContext, 'agentContext')
 
         if (!agentContext) {
           throw new Error(
@@ -402,14 +422,6 @@ export class ChatService {
       const messageId = `ai_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
       let fullAIResponse = ''
 
-      // console.log(
-      //   request.message,
-      //   agentContext.agent,
-      //   agentContext.documents,
-      //   currentSession.messages,
-      //   'onChunk callback'
-      // )
-
       let aiResponse: {
         referencedChunks?: Array<{
           chunkId: string
@@ -432,7 +444,7 @@ export class ChatService {
           currentSession.messages,
           (chunk) => {
             // Accumulate the full response
-            if (chunk.type === 'chunk') {
+            if (chunk.type === 'chunk' || chunk.type === 'message') {
               fullAIResponse += chunk.content
             }
 
@@ -456,7 +468,7 @@ export class ChatService {
           currentSession.messages,
           (chunk) => {
             // Accumulate the full response
-            if (chunk.type === 'chunk') {
+            if (chunk.type === 'chunk' || chunk.type === 'message') {
               fullAIResponse += chunk.content
             }
 
@@ -479,8 +491,25 @@ export class ChatService {
 
       // Add assistant message to session
       const finalMessages = [...updatedMessages, assistantMessage]
+
+      // Generate session title if this is the first message or if session has default title
+      let sessionTitle = currentSession.title
+      if (
+        currentSession.messages.length <= 1 || // First user message
+        currentSession.title === 'New Chat Session' ||
+        currentSession.title === 'Default Chat Session' ||
+        currentSession.title.startsWith('Chat with')
+      ) {
+        sessionTitle = await this.generateSessionTitle(
+          request.message,
+          fullAIResponse
+        )
+        logger.info(`Generated session title: "${sessionTitle}"`)
+      }
+
       const finalSession = ChatSessionModel.save({
         ...currentSession,
+        title: sessionTitle,
         messages: finalMessages,
         updatedAt: new Date(),
       })
@@ -512,7 +541,7 @@ export class ChatService {
     documents: Document[],
     chatHistory: ChatMessage[],
     onChunk: (chunk: {
-      type: 'chunk' | 'complete' | 'error'
+      type: 'chunk' | 'complete' | 'error' | 'message'
       content: string
       sources?: Array<{
         documentId: string
@@ -587,8 +616,14 @@ export class ChatService {
     userMessage: string,
     conversationHistory: ChatMessage[],
     onChunk: (chunk: {
-      type: 'chunk' | 'complete' | 'error'
+      type: 'chunk' | 'complete' | 'error' | 'message'
       content: string
+      sources?: Array<{
+        documentId: string
+        documentName: string
+        chunkId: string
+        relevanceScore: number
+      }>
     }) => void
   ): Promise<void> {
     try {
@@ -734,6 +769,111 @@ Please respond helpfully and naturally.`
       logger.error('Error deleting chat session:', error)
       throw new Error('Failed to delete chat session')
     }
+  }
+
+  /**
+   * Generate a meaningful session title based on user message and AI response
+   */
+  private async generateSessionTitle(
+    userMessage: string,
+    aiResponse: string
+  ): Promise<string> {
+    try {
+      // Create a prompt to generate a concise title
+      const titlePrompt = `Based on this conversation, generate a short, descriptive title (maximum 6 words):
+
+User: ${userMessage.substring(0, 200)}
+Assistant: ${aiResponse.substring(0, 200)}
+
+Generate a title that captures the main topic or question. Examples:
+- "JavaScript Array Methods"
+- "Python Data Structures Help" 
+- "Recipe for Chocolate Cake"
+- "Career Advice Discussion"
+- "Budget Planning Tips"
+
+Title:`
+
+      const titleResponse = await this.ragService.generateResponse({
+        message: titlePrompt,
+        docIds: [], // No document context needed for title generation
+        customSystemPrompt:
+          'You are a helpful assistant that generates short, descriptive titles. Respond with just the title, nothing else. Keep it under 6 words and make it specific to the conversation topic.',
+        retrievalConfig: {
+          maxChunks: 0,
+          minScore: 1.0,
+        },
+      })
+
+      // Clean up the title response
+      let title = titleResponse.answer.trim()
+
+      // Remove quotes if present
+      title = title.replace(/^["']|["']$/g, '')
+
+      // Limit to reasonable length and ensure it doesn't contain line breaks
+      title = title.split('\n')[0].substring(0, 50).trim()
+
+      // Fallback to a generic title based on user message if generation fails
+      if (!title || title.length < 3) {
+        title = this.generateFallbackTitle(userMessage)
+      }
+
+      return title
+    } catch (error) {
+      logger.error('Error generating session title:', error)
+      return this.generateFallbackTitle(userMessage)
+    }
+  }
+
+  /**
+   * Generate a fallback title when AI generation fails
+   */
+  private generateFallbackTitle(userMessage: string): string {
+    // Extract key words from user message
+    const message = userMessage.toLowerCase().trim()
+
+    // Common patterns for quick title generation
+    if (message.includes('how to') || message.includes('how do')) {
+      return 'How-to Question'
+    }
+    if (message.includes('what is') || message.includes('what are')) {
+      return 'Definition Request'
+    }
+    if (message.includes('explain') || message.includes('help me understand')) {
+      return 'Explanation Needed'
+    }
+    if (message.includes('help') || message.includes('problem')) {
+      return 'Help Request'
+    }
+    if (
+      message.includes('create') ||
+      message.includes('make') ||
+      message.includes('build')
+    ) {
+      return 'Creation Task'
+    }
+    if (
+      message.includes('code') ||
+      message.includes('program') ||
+      message.includes('function')
+    ) {
+      return 'Programming Help'
+    }
+
+    // Extract first few meaningful words
+    const words = userMessage
+      .replace(/[^\w\s]/g, '')
+      .split(' ')
+      .filter((word) => word.length > 2)
+      .slice(0, 3)
+
+    if (words.length > 0) {
+      return words.join(' ').substring(0, 30)
+    }
+
+    // Final fallback
+    return 'Chat Session'
   }
 
   /**

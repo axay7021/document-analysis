@@ -87,7 +87,7 @@ export class AuthController {
 
       if (error instanceof Error) {
         if (error.message.includes('Invalid credentials')) {
-          httpResponse(req, res, 401, error.message)
+          httpResponse(req, res, 400, error.message)
           return
         }
       }

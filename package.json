@@ -14,6 +14,7 @@
     "start": "cross-env NODE_ENV=production node dist/server.js",
     "add-mock-data": "cross-env NODE_ENV=development tsx scripts/addMockData.ts",
     "cleanup:documents": "cross-env NODE_ENV=development tsx scripts/cleanup-documents.ts",
+    "rebuild-vector-db": "cross-env NODE_ENV=development tsx scripts/rebuild-vector-db.ts",
     "test:chunking": "cross-env NODE_ENV=development tsx scripts/test-chunking.ts",
     "test:chat": "cross-env NODE_ENV=development tsx scripts/test-chat-system.ts",
     "test:socket-chat": "cross-env NODE_ENV=development tsx scripts/test-socket-chat.ts"
@@ -49,7 +50,7 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
-    "node-fetch": "2",
+    "node-fetch": "^2.7.0",
     "node-json-transform": "^1.1.2",
     "openai": "^6.3.0",
     "pdf-parse": "1.1.1",

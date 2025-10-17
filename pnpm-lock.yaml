@@ -99,7 +99,7 @@ importers:
         specifier: ^2.0.2
         version: 2.0.2
       node-fetch:
-        specifier: '2'
+        specifier: ^2.7.0
         version: 2.7.0
       node-json-transform:
         specifier: ^1.1.2

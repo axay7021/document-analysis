@@ -18,12 +18,12 @@ export const sendMessageSchema = Joi.object({
     'string.max': 'Message must not exceed 5000 characters',
     'any.required': 'Message is required',
   }),
-  agentId: Joi.string()
+  promptId: Joi.string()
     .uuid({ version: 'uuidv4' })
     .allow('', null)
     .optional()
     .messages({
-      'string.guid': 'Agent ID must be a valid UUID',
+      'string.guid': 'Prompt ID must be a valid UUID',
     }),
 }).unknown(false)
 

@@ -1,16 +1,11 @@
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
+import { v4 as uuidv4 } from 'uuid'
 
 import { config } from '../config'
-import type {
-  AuthResponse,
-  LoginRequest,
-  RegisterRequest,
-  User,
-  UserSession,
-} from '../types/types'
-import logger from '../utils/logger'
 import { FileStorage } from './fileStorage.service'
+import type { AuthResponse, LoginRequest, RegisterRequest, User, UserSession } from '../types/types'
+import logger from '../utils/logger'
 
 export class AuthService {
   private storage: FileStorage
@@ -20,8 +15,7 @@ export class AuthService {
 
   constructor() {
     this.storage = new FileStorage()
-    this.jwtSecret =
-      config.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production'
+    this.jwtSecret = config.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production'
   }
 
   /**
@@ -30,10 +24,8 @@ export class AuthService {
   async register(userData: RegisterRequest): Promise<AuthResponse> {
     // Check if user already exists
     const existingUsers = this.storage.getAllUsers()
-    const userExists = existingUsers.find(
-      (user) => user.email.toLowerCase() === userData.email.toLowerCase()
-    )
-
+    const userExists = existingUsers.find((user) => user.email.toLowerCase() === userData.email.toLowerCase())
+    
     if (userExists) {
       throw new Error('User with this email already exists')
     }
@@ -56,7 +48,7 @@ export class AuthService {
 
     // Generate token and session
     const { token, expiresAt } = this.generateToken(savedUser.id)
-    this.createSession(savedUser.id, token, expiresAt)
+    await this.createSession(savedUser.id, token, expiresAt)
 
     return {
       user: this.sanitizeUser(savedUser),
@@ -70,34 +62,27 @@ export class AuthService {
    */
   async login(credentials: LoginRequest): Promise<AuthResponse> {
     const users = this.storage.getAllUsers()
-    const user = users.find(
-      (u) => u.email.toLowerCase() === credentials.email.toLowerCase()
-    )
+    const user = users.find((u) => u.email.toLowerCase() === credentials.email.toLowerCase())
 
     if (!user || !user.isActive) {
       throw new Error('Invalid credentials')
     }
 
     // Verify password
-    const isPasswordValid = await bcrypt.compare(
-      credentials.password,
-      user.password
-    )
+    const isPasswordValid = await bcrypt.compare(credentials.password, user.password)
     if (!isPasswordValid) {
       throw new Error('Invalid credentials')
     }
 
     // Update last login
-    const updatedUser = this.storage.updateUser(user.id, {
-      lastLoginAt: new Date(),
-    })
+    const updatedUser = this.storage.updateUser(user.id, { lastLoginAt: new Date() })
     if (!updatedUser) {
       throw new Error('Failed to update user login time')
     }
 
     // Generate token and session
     const { token, expiresAt } = this.generateToken(user.id)
-    this.createSession(user.id, token, expiresAt)
+    await this.createSession(user.id, token, expiresAt)
 
     return {
       user: this.sanitizeUser(updatedUser),
@@ -109,10 +94,11 @@ export class AuthService {
   /**
    * Logout user (invalidate session)
    */
-  logout(token: string): void {
-    const session = this.storage.getUserSessionByToken(token)
-
-    if (session && session.isActive) {
+  async logout(token: string): Promise<void> {
+    const sessions = this.storage.getAllUserSessions()
+    const session = sessions.find((s) => s.token === token && s.isActive)
+    
+    if (session) {
       this.storage.updateUserSession(session.id, { isActive: false })
     }
   }
@@ -120,15 +106,21 @@ export class AuthService {
   /**
    * Validate token and get user
    */
-  validateToken(token: string): User | null {
+  async validateToken(token: string): Promise<User | null> {
     try {
       // Verify JWT
       const decoded = jwt.verify(token, this.jwtSecret) as { userId: string }
-
+      
       // Check session exists and is active
-      const session = this.storage.getUserSessionByToken(token)
+      const sessions = this.storage.getAllUserSessions()
+      const session = sessions.find((s) => 
+        s.token === token && 
+        s.userId === decoded.userId && 
+        s.isActive && 
+        new Date() < s.expiresAt
+      )
 
-      if (!session || !session.isActive || session.expiresAt < new Date()) {
+      if (!session) {
         return null
       }
 
@@ -152,11 +144,15 @@ export class AuthService {
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7) // 7 days from now
 
-    const token = jwt.sign({ userId }, this.jwtSecret, {
-      expiresIn: this.jwtExpirationTime,
-      issuer: 'ai-chat-platform',
-      subject: userId,
-    })
+    const token = jwt.sign(
+      { userId },
+      this.jwtSecret,
+      { 
+        expiresIn: this.jwtExpirationTime,
+        issuer: 'ai-chat-platform',
+        subject: userId,
+      }
+    )
 
     return { token, expiresAt }
   }
@@ -164,11 +160,7 @@ export class AuthService {
   /**
    * Create user session
    */
-  private createSession(
-    userId: string,
-    token: string,
-    expiresAt: Date
-  ): UserSession {
+  private async createSession(userId: string, token: string, expiresAt: Date): Promise<UserSession> {
     const session: Omit<UserSession, 'id'> = {
       userId,
       token,
@@ -191,21 +183,14 @@ export class AuthService {
   /**
    * Change user password
    */
-  async changePassword(
-    userId: string,
-    currentPassword: string,
-    newPassword: string
-  ): Promise<void> {
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
     const user = this.storage.getUser(userId)
     if (!user) {
       throw new Error('User not found')
     }
 
     // Verify current password
-    const isCurrentPasswordValid = await bcrypt.compare(
-      currentPassword,
-      user.password
-    )
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password)
     if (!isCurrentPasswordValid) {
       throw new Error('Current password is incorrect')
     }
@@ -214,7 +199,7 @@ export class AuthService {
     const hashedNewPassword = await bcrypt.hash(newPassword, this.saltRounds)
 
     // Update user
-    this.storage.updateUser(userId, {
+    this.storage.updateUser(userId, { 
       password: hashedNewPassword,
       updatedAt: new Date(),
     })
@@ -234,10 +219,7 @@ export class AuthService {
   /**
    * Update user profile
    */
-  updateProfile(
-    userId: string,
-    updates: Partial<Pick<User, 'firstName' | 'lastName'>>
-  ): Omit<User, 'password'> | null {
+  updateProfile(userId: string, updates: Partial<Pick<User, 'firstName' | 'lastName'>>): Omit<User, 'password'> | null {
     const updatedUser = this.storage.updateUser(userId, {
       ...updates,
       updatedAt: new Date(),
@@ -248,53 +230,5 @@ export class AuthService {
     }
 
     return this.sanitizeUser(updatedUser)
-  }
-
-  /**
-   * Refresh authentication token
-   */
-  refreshToken(currentToken: string): AuthResponse {
-    try {
-      // Verify current token
-      const decoded = jwt.verify(currentToken, this.jwtSecret) as {
-        userId: string
-      }
-
-      // Check session exists and is active
-      const session = this.storage.getUserSessionByToken(currentToken)
-
-      if (!session || !session.isActive || session.userId !== decoded.userId) {
-        throw new Error('Invalid session')
-      }
-
-      // Get user
-      const user = this.storage.getUser(decoded.userId)
-      if (!user || !user.isActive) {
-        throw new Error('User not found or inactive')
-      }
-
-      // Invalidate current session
-      this.storage.updateUserSession(session.id, { isActive: false })
-
-      // Generate new token and session
-      const { token, expiresAt } = this.generateToken(user.id)
-      this.createSession(user.id, token, expiresAt)
-
-      return {
-        user: this.sanitizeUser(user),
-        token,
-        expiresAt,
-      }
-    } catch (error) {
-      logger.error('Token refresh failed:', error)
-      throw new Error('Failed to refresh token')
-    }
-  }
-
-  /**
-   * Get all user sessions
-   */
-  getUserSessions(userId: string): UserSession[] {
-    return this.storage.getUserSessionsByUserId(userId)
   }
 }

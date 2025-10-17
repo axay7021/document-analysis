@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { Chunk, Document, EmbeddingModel } from '../types/types'
 import { EmbeddingService } from './embedding.service'
 import { FileStorage } from './fileStorage.service'
-import { VectorDatabaseService } from './vectorDatabase.service'
+import { VectorDatabaseService } from './vectorDatabase.enhanced.service'
 
 export class DocumentIngestionService {
   private embeddingService: EmbeddingService
@@ -16,17 +16,9 @@ export class DocumentIngestionService {
   constructor(embeddingModel?: EmbeddingModel) {
     this.embeddingService = new EmbeddingService(embeddingModel)
     this.storage = new FileStorage()
-    this.vectorDb = new VectorDatabaseService()
+    this.vectorDb = VectorDatabaseService.getGlobalInstance()
     this.chunkSize = 2000 // Maximum characters per chunk
     this.overlapSize = 200 // Overlap between consecutive chunks
-
-    // Initialize vector database
-    try {
-      this.vectorDb.initialize()
-    } catch {
-      // Log error but don't fail constructor - vector DB is optional
-      // Error is handled in the vector database service
-    }
   }
 
   /**
@@ -37,7 +29,7 @@ export class DocumentIngestionService {
       const dataBuffer = fs.readFileSync(filePath)
       // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
       const pdfParse = require('pdf-parse')
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
       const result = await pdfParse(dataBuffer)
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return
       return result.text
@@ -256,7 +248,7 @@ export class DocumentIngestionService {
 
       // Delete from vector database
       try {
-        this.vectorDb.deleteVectorsByDocumentId(documentId)
+        this.vectorDb.removeDocumentVectors(documentId)
       } catch {
         // Vector DB is optional - continue even if deletion fails
         // Error handling is done in VectorDatabaseService

@@ -167,6 +167,24 @@ export class AgentService {
       // Get the final document list
       const documents = this.getAgentDocuments(agent.id, agentData.userId)
 
+      // Force refresh vector database to include newly processed documents
+      if (uploadResults.some((result) => result.success)) {
+        try {
+          // Import and initialize vector database service
+          const { VectorDatabaseService } = await import(
+            './vectorDatabase.service'
+          )
+          const vectorDb = new VectorDatabaseService()
+          vectorDb.initialize()
+          logger.info(
+            'Vector database refreshed after agent creation with new documents'
+          )
+        } catch (error) {
+          logger.warn('Failed to refresh vector database:', error)
+          // Don't fail the agent creation, just log the warning
+        }
+      }
+
       logger.info(
         `Agent created with files: ${agent.id}, ${uploadResults.length} files processed, ${documents.length} documents associated`
       )

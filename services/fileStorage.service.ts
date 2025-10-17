@@ -84,14 +84,14 @@ export class FileStorage {
     return documents
   }
 
-  updateDocument(id: string, updates: Partial<Document>): Document | null {
+  updateDocument(id: string, update: Partial<Document>): Document | null {
     const document = this.getDocument(id)
 
     if (!document) {
       return null
     }
 
-    const updatedDocument = { ...document, ...updates, updatedAt: new Date() }
+    const updatedDocument = { ...document, ...update }
     const filePath = path.join(this.dataPath, 'documents', `${id}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(updatedDocument, null, 2))
@@ -226,31 +226,9 @@ export class FileStorage {
       const data = fs.readFileSync(filePath, 'utf-8')
       const session = JSON.parse(data) as ChatSession
 
-      // For now, we'll include all sessions. This method might need refactoring
-      // based on how you want to associate chat sessions with documents
-      sessions.push(session)
-    })
-
-    return sessions
-  }
-
-  getAllChatSessions(): ChatSession[] {
-    const sessionsDir = path.join(this.dataPath, 'chatSessions')
-
-    if (!fs.existsSync(sessionsDir)) {
-      return []
-    }
-
-    const files = fs
-      .readdirSync(sessionsDir)
-      .filter((file) => file.endsWith('.json'))
-    const sessions: ChatSession[] = []
-
-    files.forEach((file) => {
-      const filePath = path.join(sessionsDir, file)
-      const data = fs.readFileSync(filePath, 'utf-8')
-      const session = JSON.parse(data) as ChatSession
-      sessions.push(session)
+      if (session.documentIds.includes(documentId)) {
+        sessions.push(session)
+      }
     })
 
     return sessions
@@ -346,63 +324,26 @@ export class FileStorage {
     return prompts
   }
 
-  // Document Group operations
-  saveDocumentGroup(group: Omit<DocumentGroup, 'id'>): DocumentGroup {
-    const id = uuidv4()
-    const groupWithId: DocumentGroup = { ...group, id }
-    const filePath = path.join(this.dataPath, 'documentGroups', `${id}.json`)
+  // Add missing method for ChatSessions
+  getAllChatSessions(): ChatSession[] {
+    const sessionsDir = path.join(this.dataPath, 'chatSessions')
 
-    fs.writeFileSync(filePath, JSON.stringify(groupWithId, null, 2))
-    return groupWithId
-  }
-
-  getDocumentGroup(id: string): DocumentGroup | null {
-    const filePath = path.join(this.dataPath, 'documentGroups', `${id}.json`)
-
-    if (!fs.existsSync(filePath)) {
-      return null
-    }
-
-    const data = fs.readFileSync(filePath, 'utf-8')
-    return JSON.parse(data) as DocumentGroup
-  }
-
-  updateDocumentGroup(
-    id: string,
-    updates: Partial<DocumentGroup>
-  ): DocumentGroup | null {
-    const group = this.getDocumentGroup(id)
-
-    if (!group) {
-      return null
-    }
-
-    const updatedGroup = { ...group, ...updates }
-    const filePath = path.join(this.dataPath, 'documentGroups', `${id}.json`)
-
-    fs.writeFileSync(filePath, JSON.stringify(updatedGroup, null, 2))
-    return updatedGroup
-  }
-
-  getAllDocumentGroups(): DocumentGroup[] {
-    const groupsDir = path.join(this.dataPath, 'documentGroups')
-
-    if (!fs.existsSync(groupsDir)) {
+    if (!fs.existsSync(sessionsDir)) {
       return []
     }
 
     const files = fs
-      .readdirSync(groupsDir)
+      .readdirSync(sessionsDir)
       .filter((file) => file.endsWith('.json'))
-    const groups: DocumentGroup[] = []
+    const sessions: ChatSession[] = []
 
     files.forEach((file) => {
-      const filePath = path.join(groupsDir, file)
+      const filePath = path.join(sessionsDir, file)
       const data = fs.readFileSync(filePath, 'utf-8')
-      groups.push(JSON.parse(data) as DocumentGroup)
+      sessions.push(JSON.parse(data) as ChatSession)
     })
 
-    return groups
+    return sessions
   }
 
   // User operations
@@ -442,7 +383,7 @@ export class FileStorage {
       const data = fs.readFileSync(filePath, 'utf-8')
       const user = JSON.parse(data) as User
 
-      if (user.email.toLowerCase() === email.toLowerCase()) {
+      if (user.email === email) {
         return user
       }
     }
@@ -457,7 +398,7 @@ export class FileStorage {
       return null
     }
 
-    const updatedUser = { ...user, ...updates, updatedAt: new Date() }
+    const updatedUser = { ...user, ...updates }
     const filePath = path.join(this.dataPath, 'users', `${id}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(updatedUser, null, 2))
@@ -538,22 +479,11 @@ export class FileStorage {
       return null
     }
 
-    const updatedAgent = { ...agent, ...updates, updatedAt: new Date() }
+    const updatedAgent = { ...agent, ...updates }
     const filePath = path.join(this.dataPath, 'agents', `${id}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(updatedAgent, null, 2))
     return updatedAgent
-  }
-
-  deleteAgent(id: string): boolean {
-    const filePath = path.join(this.dataPath, 'agents', `${id}.json`)
-
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath)
-      return true
-    }
-
-    return false
   }
 
   getAllAgents(): Agent[] {
@@ -575,6 +505,17 @@ export class FileStorage {
     })
 
     return agents
+  }
+
+  deleteAgent(id: string): boolean {
+    const filePath = path.join(this.dataPath, 'agents', `${id}.json`)
+
+    if (!fs.existsSync(filePath)) {
+      return false
+    }
+
+    fs.unlinkSync(filePath)
+    return true
   }
 
   // UserSession operations
@@ -614,44 +555,12 @@ export class FileStorage {
       const data = fs.readFileSync(filePath, 'utf-8')
       const session = JSON.parse(data) as UserSession
 
-      if (
-        session.token === token &&
-        session.isActive &&
-        new Date(session.expiresAt) > new Date()
-      ) {
+      if (session.token === token) {
         return session
       }
     }
 
     return null
-  }
-
-  updateUserSession(
-    id: string,
-    updates: Partial<UserSession>
-  ): UserSession | null {
-    const session = this.getUserSession(id)
-
-    if (!session) {
-      return null
-    }
-
-    const updatedSession = { ...session, ...updates }
-    const filePath = path.join(this.dataPath, 'userSessions', `${id}.json`)
-
-    fs.writeFileSync(filePath, JSON.stringify(updatedSession, null, 2))
-    return updatedSession
-  }
-
-  deleteUserSession(id: string): boolean {
-    const filePath = path.join(this.dataPath, 'userSessions', `${id}.json`)
-
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath)
-      return true
-    }
-
-    return false
   }
 
   getUserSessionsByUserId(userId: string): UserSession[] {
@@ -679,21 +588,36 @@ export class FileStorage {
     return sessions
   }
 
-  // Method to get documents by user ID
-  getDocumentsByUserId(userId: string): Document[] {
-    const documents = this.getAllDocuments()
-    return documents.filter((doc) => doc.userId === userId)
+  updateUserSession(
+    id: string,
+    updates: Partial<UserSession>
+  ): UserSession | null {
+    const session = this.getUserSession(id)
+
+    if (!session) {
+      return null
+    }
+
+    const updatedSession = { ...session, ...updates }
+    const filePath = path.join(this.dataPath, 'userSessions', `${id}.json`)
+
+    fs.writeFileSync(filePath, JSON.stringify(updatedSession, null, 2))
+    return updatedSession
   }
 
-  // Method to get documents by agent ID
-  getDocumentsByAgentId(agentId: string): Document[] {
-    const documents = this.getAllDocuments()
-    return documents.filter((doc) => doc.agentIds.includes(agentId))
+  deleteUserSession(id: string): boolean {
+    const filePath = path.join(this.dataPath, 'userSessions', `${id}.json`)
+
+    if (!fs.existsSync(filePath)) {
+      return false
+    }
+
+    fs.unlinkSync(filePath)
+    return true
   }
 
-  // Method to get chat sessions by user ID
-  getChatSessionsByUserId(userId: string): ChatSession[] {
-    const sessionsDir = path.join(this.dataPath, 'chatSessions')
+  getAllUserSessions(): UserSession[] {
+    const sessionsDir = path.join(this.dataPath, 'userSessions')
 
     if (!fs.existsSync(sessionsDir)) {
       return []
@@ -702,44 +626,73 @@ export class FileStorage {
     const files = fs
       .readdirSync(sessionsDir)
       .filter((file) => file.endsWith('.json'))
-    const sessions: ChatSession[] = []
+    const sessions: UserSession[] = []
 
     files.forEach((file) => {
       const filePath = path.join(sessionsDir, file)
       const data = fs.readFileSync(filePath, 'utf-8')
-      const session = JSON.parse(data) as ChatSession
-
-      if (session.userId === userId) {
-        sessions.push(session)
-      }
+      sessions.push(JSON.parse(data) as UserSession)
     })
 
     return sessions
   }
 
-  // Method to get chat sessions by agent ID
-  getChatSessionsByAgentId(agentId: string): ChatSession[] {
-    const sessionsDir = path.join(this.dataPath, 'chatSessions')
+  // Document Group operations
+  saveDocumentGroup(group: Omit<DocumentGroup, 'id'>): DocumentGroup {
+    const id = uuidv4()
+    const groupWithId: DocumentGroup = { ...group, id }
+    const filePath = path.join(this.dataPath, 'documentGroups', `${id}.json`)
 
-    if (!fs.existsSync(sessionsDir)) {
+    fs.writeFileSync(filePath, JSON.stringify(groupWithId, null, 2))
+    return groupWithId
+  }
+
+  getDocumentGroup(id: string): DocumentGroup | null {
+    const filePath = path.join(this.dataPath, 'documentGroups', `${id}.json`)
+
+    if (!fs.existsSync(filePath)) {
+      return null
+    }
+
+    const data = fs.readFileSync(filePath, 'utf-8')
+    return JSON.parse(data) as DocumentGroup
+  }
+
+  updateDocumentGroup(
+    id: string,
+    updates: Partial<DocumentGroup>
+  ): DocumentGroup | null {
+    const group = this.getDocumentGroup(id)
+
+    if (!group) {
+      return null
+    }
+
+    const updatedGroup = { ...group, ...updates }
+    const filePath = path.join(this.dataPath, 'documentGroups', `${id}.json`)
+
+    fs.writeFileSync(filePath, JSON.stringify(updatedGroup, null, 2))
+    return updatedGroup
+  }
+
+  getAllDocumentGroups(): DocumentGroup[] {
+    const groupsDir = path.join(this.dataPath, 'documentGroups')
+
+    if (!fs.existsSync(groupsDir)) {
       return []
     }
 
     const files = fs
-      .readdirSync(sessionsDir)
+      .readdirSync(groupsDir)
       .filter((file) => file.endsWith('.json'))
-    const sessions: ChatSession[] = []
+    const groups: DocumentGroup[] = []
 
     files.forEach((file) => {
-      const filePath = path.join(sessionsDir, file)
+      const filePath = path.join(groupsDir, file)
       const data = fs.readFileSync(filePath, 'utf-8')
-      const session = JSON.parse(data) as ChatSession
-
-      if (session.agentId === agentId) {
-        sessions.push(session)
-      }
+      groups.push(JSON.parse(data) as DocumentGroup)
     })
 
-    return sessions
+    return groups
   }
 }

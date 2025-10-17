@@ -129,16 +129,18 @@ export class ChatController {
 
       const { sessionId } = req.params
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const { message, agentId } = req.body
+      const { message, promptId: agentId } = req.body
 
       // Debug logging
       logger.info('sendMessage request:', {
         sessionId,
         userId: req.user.id,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         message:
           typeof message === 'string'
             ? message.substring(0, 50) + '...'
             : message,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         agentId,
         hasMessage: !!message,
         messageType: typeof message,
@@ -160,6 +162,11 @@ export class ChatController {
       res.setHeader('Connection', 'keep-alive')
       res.setHeader('Access-Control-Allow-Origin', '*')
       res.setHeader('Access-Control-Allow-Headers', 'Cache-Control')
+
+      // Disable buffering for immediate streaming
+      res.setHeader('X-Accel-Buffering', 'no')
+      res.setHeader('Transfer-Encoding', 'chunked')
+      res.flushHeaders() // Flush the headers to establish SSE with client
 
       // Normalize agentId - convert empty string to undefined
       const normalizedAgentId =
@@ -184,6 +191,9 @@ export class ChatController {
         try {
           // Send each chunk as SSE data
           res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+
+          // Force flush the response to ensure immediate delivery
+          res.flush()
         } catch (writeError) {
           logger.error('Error writing SSE chunk:', writeError)
         }
@@ -235,6 +245,7 @@ export class ChatController {
       }
 
       const { sessionId } = req.params
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const { title } = req.body
 
       if (!sessionId || !title) {
