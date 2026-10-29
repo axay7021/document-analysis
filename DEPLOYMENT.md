@@ -22,3 +22,7 @@ Security changes: removed cross-document RAG fallback in both paths; empty docum
 - [ ] Add the real frontend URL to the portfolio only after deployment and verification.
 
 Local passing tests do not establish live AI functionality. Runtime data, test accounts and secrets must never be committed.
+
+## Local verification completed (29 October 2026)
+
+TypeScript build and four security regression tests pass. HTTP checks pass with an empty OpenAI key: health 200; two separate registrations/logins; owner can read their session; second user receives 404 for that session; AI message request returns 503 AI_NOT_CONFIGURED; logout revokes access (profile returns 401). These used synthetic accounts in a temporary directory outside the repository. Both Render YAML files pass the current public Blueprint JSON schema; the Render CLI is not installed, so platform-aware validation remains pending.

@@ -65,7 +65,6 @@ export class ChatController {
         return
       }
 
-      console.log(req.user)
 
       const sessions = this.chatService.getUserChatSessions(req.user.id)
 

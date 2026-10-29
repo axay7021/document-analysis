@@ -377,7 +377,6 @@ export class ChatService {
           request.userId
         )
 
-        console.log(agentContext, 'agentContext')
 
         if (!agentContext) {
           throw new Error(

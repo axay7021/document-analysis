@@ -33,7 +33,7 @@ router.post(
  * @route POST /api/v1/auth/logout
  * @desc Logout user (requires authentication)
  */
-router.post('/logout', authController.logout.bind(authController))
+router.post('/logout', authMiddleware, authController.logout.bind(authController))
 
 /**
  * @route GET /api/v1/auth/profile

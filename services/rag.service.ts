@@ -221,17 +221,6 @@ export class RAGService {
 
       logger.info('Relevant chunks found', { count: relevantChunks.length })
 
-      // Debug: Log document IDs for filtering
-      logger.info('Expected document IDs:', { docIds: request.docIds })
-      logger.info(
-        'Found chunk document IDs:',
-        relevantChunks.map((r) => ({
-          chunkId: r.chunkId,
-          documentId: r.chunk?.documentId,
-          content: (r.chunk?.content || '').substring(0, 100) + '...',
-        }))
-      )
-
       const filteredChunks = relevantChunks.filter((result) =>
         request.docIds.includes(result.chunk?.documentId || '')
       )

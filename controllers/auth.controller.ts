@@ -120,7 +120,6 @@ export class AuthController {
    */
   public getProfile = (req: Request, res: Response) => {
     try {
-      console.log('auth', req)
 
       if (!req.user?.id) {
         httpResponse(req, res, 401, 'Authentication required')
