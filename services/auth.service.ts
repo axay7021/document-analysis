@@ -15,7 +15,7 @@ export class AuthService {
 
   constructor() {
     this.storage = new FileStorage()
-    this.jwtSecret = config.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production'
+    this.jwtSecret = config.JWT_SECRET
   }
 
   /**
@@ -117,7 +117,7 @@ export class AuthService {
         s.token === token && 
         s.userId === decoded.userId && 
         s.isActive && 
-        new Date() < s.expiresAt
+        new Date() < new Date(s.expiresAt)
       )
 
       if (!session) {

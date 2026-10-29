@@ -1,14 +1,6 @@
 const $ = (id) => document.getElementById(id)
-const samples = [
-  {
-    name: 'Project brief.md',
-    text: `Project timeline\nThe document intelligence proof of concept is planned in three phases: document ingestion, retrieval and chat, followed by interface validation. Each phase ends with a working walkthrough.\n\nDocument processing\nThe backend accepts PDF, TXT and Markdown documents. It extracts text, splits it into chunks, computes embeddings and searches a FAISS vector index. Retrieved passages become context for an AI answer streamed using Server-Sent Events.\n\nAcceptance criteria\nVisitors must be able to inspect a sample document, ask a question and see the source evidence. The portfolio demo must distinguish local passage retrieval from live AI generation. No private documents or credentials are included.`,
-  },
-  {
-    name: 'Architecture notes.md',
-    text: `Application architecture\nAn Express and TypeScript API manages authenticated users, agents, documents and chat sessions. File-backed storage tracks application records; FAISS holds the vector index.\n\nAuthentication\nProtected routes require a bearer token issued by the login or registration endpoint. API credentials remain server-side.\n\nDeployment\nThe backend needs a Node host that supports native FAISS bindings and persistent storage. The static portfolio interface can be served without the AI backend; live answers require a configured model provider.`,
-  },
-].map((d) => ({ ...d, text: d.text.replaceAll('\n', '\n') }))
+const API_ORIGIN = window.DOCUMENT_API_ORIGIN || ''
+const samples = []
 let docs = [...samples],
   selected = 0,
   token = '',
@@ -103,20 +95,21 @@ function reset() {
   sessionId = ''
   docs = [...samples]
   selected = 0
-  $('mode').textContent = 'Interactive portfolio demo'
+  $('mode').textContent = 'Document Analysis'
   $('disconnect').hidden = true
   $('connect').hidden = false
   $('messages').replaceChildren()
   say(
-    'Choose a sample document or add a TXT / Markdown file, then ask a question. I will show the closest matching passage.'
+    'Sign in or create an account, then upload a document to ask questions.'
   )
-  status('Local demo · no AI calls · nothing uploaded')
+  status(API_ORIGIN ? 'Sign in to upload documents.' : 'Backend deployment is not configured yet.')
   render()
 }
 $('question-form').onsubmit = async (event) => {
   event.preventDefault()
   const question = $('question').value.trim()
   if (!question || busy) return
+  if (!token) { status('Sign in before asking a question.', true); return }
   if (!docs.length) {
     status('Upload a document before asking a question.', true)
     return
@@ -262,6 +255,7 @@ $('clear').onclick = () => {
 $('upload').onchange = async () => {
   const file = $('upload').files[0]
   if (!file) return
+  if (!token) { status('Sign in before uploading a document.', true); $('upload').value = ''; return }
   setBusy(true)
   try {
     const limit = token ? 10 * 1024 * 1024 : 1024 * 1024
@@ -319,13 +313,16 @@ $('upload').onchange = async () => {
 }
 $('connect').onclick = () => $('settings').showModal()
 $('close').onclick = () => $('settings').close()
-$('disconnect').onclick = reset
+$('disconnect').onclick = async () => {
+  try { await api('/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) }) } finally { reset() }
+}
 $('login-form').onsubmit = async (event) => {
   event.preventDefault()
   $('login').disabled = true
   $('login-status').textContent = 'Connecting…'
   try {
-    const url = new URL($('api-origin').value)
+    if (!API_ORIGIN) throw new Error('Backend deployment is not configured yet.')
+    const url = new URL(API_ORIGIN)
     if (
       url.protocol !== 'https:' &&
       !(
@@ -335,12 +332,14 @@ $('login-form').onsubmit = async (event) => {
     )
       throw new Error('Use HTTPS for a remote backend, or HTTP on localhost.')
     origin = url.origin
-    const response = await api('/auth/login', {
+    const registering = $('register-mode').checked
+    const response = await api(registering ? '/auth/register' : '/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: $('email').value,
         password: $('password').value,
+        ...(registering ? { firstName: $('first-name').value, lastName: $('last-name').value } : {}),
       }),
     })
     const result = await response.json()

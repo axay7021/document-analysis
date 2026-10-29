@@ -20,16 +20,14 @@ interface RAGRequest {
 }
 
 export class RAGService {
-  private openai: OpenAI
+  private openai: OpenAI | null
   private embeddingService: EmbeddingService
   private vectorService: VectorDatabaseService
   private storage: FileStorage
   private isInitialized = false
 
   constructor() {
-    this.openai = new OpenAI({
-      apiKey: config.OPENAI_API_KEY,
-    })
+    this.openai = config.OPENAI_API_KEY ? new OpenAI({ apiKey: config.OPENAI_API_KEY }) : null
     this.embeddingService = new EmbeddingService()
     this.vectorService = VectorDatabaseService.getGlobalInstance()
     this.storage = new FileStorage()
@@ -53,6 +51,9 @@ export class RAGService {
    * Generate a response using RAG
    */
   async generateResponse(request: RAGRequest): Promise<RAGResponse> {
+    if (!request.docIds.length) {
+      return { answer: 'Select a document before asking a question.', referencedChunks: [] }
+    }
     if (!this.isInitialized) {
       this.initialize()
     }
@@ -66,6 +67,7 @@ export class RAGService {
 
     const startTime = Date.now()
 
+    if (!this.openai) throw new Error('AI service not configured: OPENAI_API_KEY is empty')
     try {
       // Validate request message
       if (
@@ -91,105 +93,13 @@ export class RAGService {
         minScore
       )
 
-      // Filter chunks by document IDs if specified, or use all chunks if no docIds provided
-      const filteredChunks =
-        request.docIds.length > 0
-          ? relevantChunks.filter((result) =>
-              request.docIds.includes(result.chunk?.documentId || '')
-            )
-          : relevantChunks // Use all relevant chunks if no specific documents requested
-
+      const filteredChunks = relevantChunks.filter((result) =>
+        request.docIds.includes(result.chunk?.documentId || '')
+      )
       if (filteredChunks.length === 0) {
-        // No relevant chunks found - generate basic AI response
-        if (request.docIds.length > 0) {
-          // Check if we have relevant chunks but from wrong documents (vector DB issue)
-          if (relevantChunks.length > 0) {
-            logger.warn(
-              'Non-streaming: Vector database document ID mismatch - using available chunks'
-            )
-            // Use the best available chunks even if document IDs don't match
-            const bestChunks = relevantChunks.slice(0, 3)
-
-            const systemPrompt = this.getSystemPrompt(
-              request.systemPromptId,
-              request.customSystemPrompt,
-              'text'
-            )
-
-            const contextText = bestChunks
-              .map(
-                (result, index) =>
-                  `[Context ${index + 1}] (from document):\n${(
-                    result.chunk?.content || ''
-                  ).substring(0, 200)}\n`
-              )
-              .join('\n')
-
-            const prompt = `${systemPrompt}\n\nContext Information:\n${contextText}\n\nUser Question: ${request.message}\n\nResponse:`
-
-            const response = await this.openai.chat.completions.create({
-              model: 'gpt-3.5-turbo',
-              messages: [{ role: 'user', content: prompt }],
-              temperature: 0.1,
-            })
-
-            const answer =
-              response.choices[0]?.message?.content ||
-              'I apologize, but I was unable to generate a response.'
-
-            return {
-              answer,
-              referencedChunks: bestChunks.map((result) => ({
-                chunkId: result.chunkId,
-                score: result.score,
-                content: result.chunk?.content || '',
-              })),
-            }
-          }
-
-          // User requested specific documents but none found
-          const fallbackAnswer =
-            "I couldn't find relevant information in the provided documents to answer your question. Could you please rephrase or provide more context?"
-          return {
-            answer: fallbackAnswer,
-            referencedChunks: [],
-          }
-        } else {
-          // No documents requested - generate general AI response
-          const basicSystemPrompt =
-            "You are a helpful AI assistant. Respond naturally and helpfully to the user's message."
-
-          try {
-            const response = await this.openai.chat.completions.create({
-              model: 'gpt-4.1',
-              messages: [
-                {
-                  role: 'system',
-                  content: basicSystemPrompt,
-                },
-                {
-                  role: 'user',
-                  content: request.message,
-                },
-              ],
-              temperature: 0.1,
-            })
-
-            const answer =
-              response.choices[0]?.message?.content ||
-              'I apologize, but I was unable to generate a response.'
-
-            return {
-              answer,
-              referencedChunks: [],
-            }
-          } catch (error) {
-            logger.error('Failed to generate basic AI response:', error)
-            return {
-              answer: "I'm here to help! Could you please ask me a question?",
-              referencedChunks: [],
-            }
-          }
+        return {
+          answer: "I couldn't find relevant information in your selected documents.",
+          referencedChunks: [],
         }
       }
 
@@ -266,12 +176,16 @@ export class RAGService {
       }>
     }) => void
   ): Promise<RAGResponse> {
+    if (!request.docIds.length) {
+      return { answer: 'Select a document before asking a question.', referencedChunks: [] }
+    }
     if (!this.isInitialized) {
       throw new Error('RAG service not initialized')
     }
 
     const startTime = Date.now()
 
+    if (!this.openai) throw new Error('AI service not configured: OPENAI_API_KEY is empty')
     try {
       // Validate request message
       if (
@@ -286,8 +200,6 @@ export class RAGService {
       const queryEmbedding = await this.embeddingService.generateEmbedding(
         request.message.trim()
       )
-      // cec1e6f7-2702-4c96-acf8-82c3a8b77618
-      console.log(queryEmbedding, 'queryEmbedding')
 
       // 2. Search for relevant chunks
       const maxChunks = request.retrievalConfig?.maxChunks || 5
@@ -306,7 +218,6 @@ export class RAGService {
         maxChunks,
         minScore
       )
-      console.log(relevantChunks, 'relevantChunk')
 
       logger.info('Relevant chunks found', { count: relevantChunks.length })
 
@@ -321,164 +232,13 @@ export class RAGService {
         }))
       )
 
-      // Filter chunks by document IDs if specified, or use all chunks if no docIds provided
-      const filteredChunks =
-        request.docIds.length > 0
-          ? relevantChunks.filter((result) => {
-              const isMatch = request.docIds.includes(
-                result.chunk?.documentId || ''
-              )
-              logger.info(
-                `Chunk ${result.chunkId} (docId: ${
-                  result.chunk?.documentId
-                }) matches expected docIds: ${isMatch}`
-              )
-              return isMatch
-            })
-          : relevantChunks // Use all relevant chunks if no specific documents requested
-
-      logger.info('Filtered chunks count:', { count: filteredChunks.length })
-
+      const filteredChunks = relevantChunks.filter((result) =>
+        request.docIds.includes(result.chunk?.documentId || '')
+      )
       if (filteredChunks.length === 0) {
-        // No relevant chunks found
-        if (request.docIds.length > 0) {
-          // User requested specific documents but none found
-          logger.warn('No chunks found for specified documents', {
-            requestedDocIds: request.docIds,
-            foundChunks: relevantChunks.length,
-            foundDocIds: relevantChunks
-              .map((r) => r.chunk?.documentId)
-              .filter(Boolean),
-          })
-
-          // Check if we have relevant chunks but from wrong documents
-          if (relevantChunks.length > 0) {
-            logger.warn(
-              'Vector database may have document ID mismatch - using available chunks anyway'
-            )
-            // Use the best available chunks even if document IDs don't match
-            const bestChunks = relevantChunks.slice(0, 3) // Use top 3 chunks
-
-            // Continue with processing using available chunks
-            const systemPrompt = this.getSystemPrompt(
-              request.systemPromptId,
-              request.customSystemPrompt,
-              'text'
-            )
-
-            const contextText = bestChunks
-              .map(
-                (result, index) =>
-                  `[Context ${index + 1}]:\n${(
-                    result.chunk?.content || ''
-                  ).substring(0, 300)}\n`
-              )
-              .join('\n')
-
-            const prompt = `${systemPrompt}\n\nContext Information:\n${contextText}\n\nUser Question: ${request.message}\n\nResponse:`
-
-            const response = await this.openai.chat.completions.create({
-              model: 'gpt-3.5-turbo',
-              messages: [{ role: 'user', content: prompt }],
-              temperature: 0.1,
-            })
-
-            const answer =
-              response.choices[0]?.message?.content ||
-              'I apologize, but I was unable to generate a response.'
-
-            onChunk({
-              type: 'message',
-              content: answer,
-              sources: [],
-            })
-
-            return {
-              answer,
-              referencedChunks: bestChunks.map((result) => ({
-                chunkId: result.chunkId,
-                score: result.score,
-                content: result.chunk?.content || '',
-              })),
-            }
-          }
-
-          const fallbackAnswer =
-            "I couldn't find relevant information in the provided documents to answer your question. Could you please rephrase or provide more context?"
-
-          onChunk({
-            type: 'message',
-            content: fallbackAnswer,
-            sources: [],
-          })
-
-          return {
-            answer: fallbackAnswer,
-            referencedChunks: [],
-          }
-        } else {
-          // No documents requested - generate general AI response with streaming
-          const basicSystemPrompt =
-            "You are a helpful AI assistant. Respond naturally and helpfully to the user's message."
-
-          try {
-            const stream = await this.openai.chat.completions.create({
-              model: 'gpt-4.1',
-              messages: [
-                {
-                  role: 'system',
-                  content: basicSystemPrompt,
-                },
-                {
-                  role: 'user',
-                  content: request.message,
-                },
-              ],
-              temperature: 0.1,
-              stream: true,
-            })
-
-            let fullAnswer = ''
-            for await (const chunk of stream) {
-              const content = chunk.choices[0]?.delta?.content || ''
-              if (content) {
-                fullAnswer += content
-
-                // Send content as received from OpenAI for true streaming
-                onChunk({
-                  type: 'message',
-                  content,
-                  sources: [],
-                })
-              }
-            }
-
-            return {
-              answer:
-                fullAnswer ||
-                'I apologize, but I was unable to generate a response.',
-              referencedChunks: [],
-            }
-          } catch (error) {
-            logger.error(
-              'Failed to generate basic AI streaming response:',
-              error
-            )
-            const fallbackAnswer =
-              "I'm here to help! Could you please ask me a question?"
-
-            onChunk({
-              type: 'message',
-              content: fallbackAnswer,
-              sources: [],
-            })
-
-            return {
-              answer: fallbackAnswer,
-              referencedChunks: [],
-            }
-          }
-        }
+        const answer = "I couldn't find relevant information in your selected documents."
+        onChunk({ type: 'message', content: answer, sources: [] })
+        return { answer, referencedChunks: [] }
       }
 
       // 3. Get system prompt
@@ -622,7 +382,8 @@ When referencing information, mention which document it came from if relevant.`
     const responses: RAGResponse[] = []
 
     for (const request of requests) {
-      try {
+      if (!this.openai) throw new Error('AI service not configured: OPENAI_API_KEY is empty')
+    try {
         const response = await this.generateResponse(request)
         responses.push(response)
       } catch (error) {

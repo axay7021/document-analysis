@@ -3,11 +3,13 @@ import multer from 'multer'
 import path from 'path'
 import { mkdirSync } from 'node:fs'
 
+import config from '../config'
+
 // Storage configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    mkdirSync('uploads/documents', { recursive: true })
-    cb(null, 'uploads/documents')
+    mkdirSync(config.UPLOAD_STORAGE_PATH, { recursive: true })
+    cb(null, config.UPLOAD_STORAGE_PATH)
   },
   filename: (req, file, cb) => {
     // Generate unique filename with timestamp

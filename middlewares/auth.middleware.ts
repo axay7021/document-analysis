@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express'
 import jwt from 'jsonwebtoken'
 
 import { config } from '../config'
-import { UserSessionModel } from '../models'
+import { UserSessionModel, UserModel } from '../models'
 import httpResponse from '../utils/httpResponse'
 // Import to ensure types are loaded
 import '../types/express.types'
@@ -31,14 +31,14 @@ export const authMiddleware = (
 
     // Verify JWT token
     const jwtSecret =
-      config.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production'
+      config.JWT_SECRET
 
     const decoded = jwt.verify(token, jwtSecret) as JWTPayload
 
     // Check if session exists and is valid
     const session = UserSessionModel.findByToken(token)
 
-    if (!session || !session.isActive || session.expiresAt < new Date()) {
+    if (!session || !session.isActive || session.userId !== decoded.userId || new Date(session.expiresAt) <= new Date() || !UserModel.findById(decoded.userId)?.isActive) {
       httpResponse(req, res, 401, 'Invalid or expired token.')
       return
     }
@@ -46,7 +46,7 @@ export const authMiddleware = (
     // Add user info to request
     req.user = {
       id: decoded.userId,
-      sessionId: decoded.sessionId,
+      sessionId: session.id,
       token,
     }
 
@@ -74,16 +74,16 @@ export const optionalAuthMiddleware = (
 
     const token = authHeader.substring(7)
     const jwtSecret =
-      config.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production'
+      config.JWT_SECRET
 
     try {
       const decoded = jwt.verify(token, jwtSecret) as JWTPayload
       const session = UserSessionModel.findByToken(token)
 
-      if (session && session.isActive && session.expiresAt > new Date()) {
+      if (session && session.isActive && session.userId === decoded.userId && new Date(session.expiresAt) > new Date() && UserModel.findById(decoded.userId)?.isActive) {
         req.user = {
           id: decoded.userId,
-          sessionId: decoded.sessionId,
+          sessionId: session.id,
           token,
         }
       }

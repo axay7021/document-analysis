@@ -1,13 +1,11 @@
 import { createServer } from 'http'
-import { Server } from 'socket.io'
 
 import app from './app'
 import config from './config'
 import { AppInitializationService } from './services/appInitialization.service'
-import { ChatSocketService } from './services/chatSocket.service'
 import logger from './utils/logger'
 
-const PORT = config.PORT ?? 8080
+const PORT = Number(config.PORT ?? 8080)
 
 const log = () => {
   logger.info(`Server is running on port ${PORT}`)
@@ -26,24 +24,13 @@ process.on('uncaughtException', (err) => {
 
 // Create HTTP server and integrate Socket.IO
 const server = createServer(app)
-const io = new Server(server, {
-  cors: {
-    origin: '*', // Configure this based on your frontend domain in production
-    methods: ['GET', 'POST'],
-  },
-})
-
-// Initialize chat socket service
-const chatSocketService = new ChatSocketService(io)
-chatSocketService.initialize()
-
 // Initialize application before starting server
 const startServer = async () => {
   try {
     // Initialize all services including vector database
     await AppInitializationService.initializeApp()
 
-    const listen = server.listen(PORT, log)
+    const listen = server.listen(PORT, '0.0.0.0', log)
 
     // UNHANDLED REJECTION, WHEN FACE SOME PROGRAMMATIC ERROR
     process.on('unhandledRejection', (err: unknown) => {

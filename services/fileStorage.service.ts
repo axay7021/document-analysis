@@ -42,18 +42,23 @@ export class FileStorage {
     })
   }
 
+  private safeId(id: string): string {
+    if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error('Invalid record ID')
+    return id
+  }
+
   // Document operations
   saveDocument(document: Omit<Document, 'id'>): Document {
     const id = uuidv4()
     const documentWithId: Document = { ...document, id }
-    const filePath = path.join(this.dataPath, 'documents', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'documents', `${this.safeId(id)}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(documentWithId, null, 2))
     return documentWithId
   }
 
   getDocument(id: string): Document | null {
-    const filePath = path.join(this.dataPath, 'documents', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'documents', `${this.safeId(id)}.json`)
 
     if (!fs.existsSync(filePath)) {
       return null
@@ -92,14 +97,14 @@ export class FileStorage {
     }
 
     const updatedDocument = { ...document, ...update }
-    const filePath = path.join(this.dataPath, 'documents', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'documents', `${this.safeId(id)}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(updatedDocument, null, 2))
     return updatedDocument
   }
 
   deleteDocument(id: string): boolean {
-    const filePath = path.join(this.dataPath, 'documents', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'documents', `${this.safeId(id)}.json`)
 
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath)
@@ -175,14 +180,14 @@ export class FileStorage {
   saveChatSession(session: Omit<ChatSession, 'id'>): ChatSession {
     const id = uuidv4()
     const sessionWithId: ChatSession = { ...session, id }
-    const filePath = path.join(this.dataPath, 'chatSessions', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'chatSessions', `${this.safeId(id)}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(sessionWithId, null, 2))
     return sessionWithId
   }
 
   getChatSession(id: string): ChatSession | null {
-    const filePath = path.join(this.dataPath, 'chatSessions', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'chatSessions', `${this.safeId(id)}.json`)
 
     if (!fs.existsSync(filePath)) {
       return null
@@ -203,7 +208,7 @@ export class FileStorage {
     }
 
     const updatedSession = { ...session, ...updates }
-    const filePath = path.join(this.dataPath, 'chatSessions', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'chatSessions', `${this.safeId(id)}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(updatedSession, null, 2))
     return updatedSession
@@ -238,14 +243,14 @@ export class FileStorage {
   saveSystemPrompt(prompt: Omit<SystemPrompt, 'id'>): SystemPrompt {
     const id = uuidv4()
     const promptWithId: SystemPrompt = { ...prompt, id }
-    const filePath = path.join(this.dataPath, 'systemPrompts', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'systemPrompts', `${this.safeId(id)}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(promptWithId, null, 2))
     return promptWithId
   }
 
   getSystemPromptById(id: string): SystemPrompt | null {
-    const filePath = path.join(this.dataPath, 'systemPrompts', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'systemPrompts', `${this.safeId(id)}.json`)
 
     if (!fs.existsSync(filePath)) {
       return null
@@ -350,14 +355,14 @@ export class FileStorage {
   saveUser(user: Omit<User, 'id'>): User {
     const id = uuidv4()
     const userWithId: User = { ...user, id }
-    const filePath = path.join(this.dataPath, 'users', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'users', `${this.safeId(id)}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(userWithId, null, 2))
     return userWithId
   }
 
   getUser(id: string): User | null {
-    const filePath = path.join(this.dataPath, 'users', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'users', `${this.safeId(id)}.json`)
 
     if (!fs.existsSync(filePath)) {
       return null
@@ -399,7 +404,7 @@ export class FileStorage {
     }
 
     const updatedUser = { ...user, ...updates }
-    const filePath = path.join(this.dataPath, 'users', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'users', `${this.safeId(id)}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(updatedUser, null, 2))
     return updatedUser
@@ -430,14 +435,14 @@ export class FileStorage {
   saveAgent(agent: Omit<Agent, 'id'>): Agent {
     const id = uuidv4()
     const agentWithId: Agent = { ...agent, id }
-    const filePath = path.join(this.dataPath, 'agents', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'agents', `${this.safeId(id)}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(agentWithId, null, 2))
     return agentWithId
   }
 
   getAgent(id: string): Agent | null {
-    const filePath = path.join(this.dataPath, 'agents', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'agents', `${this.safeId(id)}.json`)
 
     if (!fs.existsSync(filePath)) {
       return null
@@ -480,7 +485,7 @@ export class FileStorage {
     }
 
     const updatedAgent = { ...agent, ...updates }
-    const filePath = path.join(this.dataPath, 'agents', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'agents', `${this.safeId(id)}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(updatedAgent, null, 2))
     return updatedAgent
@@ -508,7 +513,7 @@ export class FileStorage {
   }
 
   deleteAgent(id: string): boolean {
-    const filePath = path.join(this.dataPath, 'agents', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'agents', `${this.safeId(id)}.json`)
 
     if (!fs.existsSync(filePath)) {
       return false
@@ -522,14 +527,14 @@ export class FileStorage {
   saveUserSession(session: Omit<UserSession, 'id'>): UserSession {
     const id = uuidv4()
     const sessionWithId: UserSession = { ...session, id }
-    const filePath = path.join(this.dataPath, 'userSessions', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'userSessions', `${this.safeId(id)}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(sessionWithId, null, 2))
     return sessionWithId
   }
 
   getUserSession(id: string): UserSession | null {
-    const filePath = path.join(this.dataPath, 'userSessions', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'userSessions', `${this.safeId(id)}.json`)
 
     if (!fs.existsSync(filePath)) {
       return null
@@ -599,14 +604,14 @@ export class FileStorage {
     }
 
     const updatedSession = { ...session, ...updates }
-    const filePath = path.join(this.dataPath, 'userSessions', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'userSessions', `${this.safeId(id)}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(updatedSession, null, 2))
     return updatedSession
   }
 
   deleteUserSession(id: string): boolean {
-    const filePath = path.join(this.dataPath, 'userSessions', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'userSessions', `${this.safeId(id)}.json`)
 
     if (!fs.existsSync(filePath)) {
       return false
@@ -641,14 +646,14 @@ export class FileStorage {
   saveDocumentGroup(group: Omit<DocumentGroup, 'id'>): DocumentGroup {
     const id = uuidv4()
     const groupWithId: DocumentGroup = { ...group, id }
-    const filePath = path.join(this.dataPath, 'documentGroups', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'documentGroups', `${this.safeId(id)}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(groupWithId, null, 2))
     return groupWithId
   }
 
   getDocumentGroup(id: string): DocumentGroup | null {
-    const filePath = path.join(this.dataPath, 'documentGroups', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'documentGroups', `${this.safeId(id)}.json`)
 
     if (!fs.existsSync(filePath)) {
       return null
@@ -669,7 +674,7 @@ export class FileStorage {
     }
 
     const updatedGroup = { ...group, ...updates }
-    const filePath = path.join(this.dataPath, 'documentGroups', `${id}.json`)
+    const filePath = path.join(this.dataPath, 'documentGroups', `${this.safeId(id)}.json`)
 
     fs.writeFileSync(filePath, JSON.stringify(updatedGroup, null, 2))
     return updatedGroup

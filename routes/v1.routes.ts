@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import config from '../config'
 
 import agentRoutes from './agents/agents.route'
 import authRoutes from './auth/auth.route'
@@ -7,6 +8,19 @@ import chatRoutes from './chat/chat.route'
 const router = Router()
 // Authentication routes (no auth middleware)
 router.use('/auth', authRoutes)
+
+// Fail clearly before accepting AI-dependent uploads or opening SSE streams.
+router.use((req, res, next) => {
+  const needsAI = req.method === 'POST' && (
+    (req.path.startsWith('/prompts') && req.headers['content-type']?.includes('multipart/form-data')) ||
+    req.path.endsWith('/messages')
+  )
+  if (needsAI && !config.OPENAI_API_KEY) {
+    res.status(503).json({ success: false, code: 'AI_NOT_CONFIGURED', message: 'AI service is not configured yet. The owner must add the OpenAI key.' })
+    return
+  }
+  next()
+})
 
 // Agent management routes
 router.use('/prompts', agentRoutes)

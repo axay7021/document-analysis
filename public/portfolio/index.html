@@ -9,21 +9,20 @@
     />
     <title>Document Analysis | Evidence workspace</title>
     <link rel="stylesheet" href="./demo.css" />
+    <script src="./config.js"></script>
     <script src="./demo.js" type="module"></script>
   </head>
   <body>
     <header>
-      <a class="brand" href="./index.html">folio / documents</a
-      ><span class="tag">Akshay Dobariya / Engineering portfolio</span
-      ><span class="badge" id="mode">Interactive portfolio demo</span>
+      <a class="brand" href="./index.html">Document Analysis</a
+      ><span class="tag">Private document workspace</span
+      ><span class="badge" id="mode">Document Analysis</span>
     </header>
     <section class="hero">
       <span class="kicker">Document intelligence / 03</span>
       <h1>Your documents.<br />Answers you can trace.</h1>
       <p>
-        Explore a document, ask a question, and follow the evidence. The browser
-        demo retrieves passages locally; connect your own backend to use the
-        original AI-powered RAG pipeline.
+        Sign in, upload a document, and ask questions with source references. AI processing becomes available after the owner configures the provider.
       </p>
       <div class="pipeline">
         <span>Upload</span><span>Extract & chunk</span><span>Vector search</span
@@ -42,12 +41,11 @@
             aria-label="Add document"
         /></label>
         <p class="muted" id="upload-help">
-          Demo: TXT / Markdown, up to 1 MB. Files stay in this tab. PDF
-          processing is available with the backend.
+          PDF, TXT and Markdown, up to 10 MB. Sign in to upload privately.
         </p>
-        <button id="connect" class="secondary full">Connect backend</button
+        <button id="connect" class="secondary full">Sign in / Create account</button
         ><button id="disconnect" class="secondary full" hidden>
-          Return to browser demo
+          Sign out
         </button>
       </aside>
       <section class="panel">
@@ -90,9 +88,7 @@
         <span class="badge" id="source-label">Selected document</span>
         <div id="evidence" class="source"></div>
         <p class="muted">
-          Browser demo: exact passages ranked by keyword overlap, without an
-          LLM. Connected mode: streaming responses and references from the
-          existing authenticated API.
+          Responses use passages from your selected document. Provider configuration is required for AI indexing and answers.
         </p>
       </aside>
     </main>
@@ -104,7 +100,7 @@
     <dialog id="settings">
       <form id="login-form" class="stack">
         <div class="row" style="justify-content: space-between">
-          <h2>Connect your backend</h2>
+          <h2>Your account</h2>
           <button
             type="button"
             id="close"
@@ -115,17 +111,12 @@
           </button>
         </div>
         <p class="muted">
-          Use your own running Document Analysis API and account. Credentials
-          are held only in this tab. Register an account using the API first;
-          see the repository README.
+          Your documents and session are stored privately on the application backend. Sign in or create a new account.
         </p>
+        <label><input id="register-mode" type="checkbox" /> Create a new account</label>
+        <label>First name<input id="first-name" autocomplete="given-name" /></label>
+        <label>Last name<input id="last-name" autocomplete="family-name" /></label>
         <label
-          >Backend origin<input
-            id="api-origin"
-            type="url"
-            placeholder="http://localhost:3000"
-            required /></label
-        ><label
           >Email<input
             id="email"
             type="email"
@@ -137,7 +128,7 @@
             type="password"
             autocomplete="current-password"
             required /></label
-        ><button class="primary" id="login">Sign in & connect</button>
+        ><button class="primary" id="login">Continue</button>
         <p id="login-status" class="status" role="status"></p>
       </form>
     </dialog>

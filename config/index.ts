@@ -2,6 +2,10 @@ import dotenvFlow from 'dotenv-flow'
 
 dotenvFlow.config()
 
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+  throw new Error('JWT_SECRET must be configured with at least 32 random characters')
+}
+
 const config = {
   // General
   ENV: process.env.ENV as string,
@@ -19,8 +23,9 @@ const config = {
   GOOGLE_GENAI_API_KEY: process.env.GOOGLE_GENAI_API_KEY as string,
 
   // Authentication
-  JWT_SECRET:
-    process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
+  JWT_SECRET: process.env.JWT_SECRET,
+
+  UPLOAD_STORAGE_PATH: process.env.UPLOAD_STORAGE_PATH || './uploads/documents',
 
   // File Storage
   DATA_STORAGE_PATH: process.env.DATA_STORAGE_PATH || './data/storage',

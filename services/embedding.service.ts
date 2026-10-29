@@ -4,13 +4,11 @@ import config from '../config'
 import type { EmbeddingModel } from '../types/types'
 
 export class EmbeddingService {
-  private openai: OpenAI
+  private openai: OpenAI | null
   private model: EmbeddingModel
 
   constructor(embeddingModel?: EmbeddingModel) {
-    this.openai = new OpenAI({
-      apiKey: config.OPENAI_API_KEY,
-    })
+    this.openai = config.OPENAI_API_KEY ? new OpenAI({ apiKey: config.OPENAI_API_KEY }) : null
 
     this.model = embeddingModel || {
       name: 'text-embedding-ada-002',
@@ -24,6 +22,7 @@ export class EmbeddingService {
    * Generate embedding for a text string
    */
   async generateEmbedding(text: string): Promise<number[]> {
+    if (!this.openai) throw new Error('AI service not configured: OPENAI_API_KEY is empty')
     try {
       // Validate input text
       if (!text || typeof text !== 'string') {
@@ -51,6 +50,7 @@ export class EmbeddingService {
    * Generate embeddings for multiple texts in batch
    */
   async generateBatchEmbeddings(texts: string[]): Promise<number[][]> {
+    if (!this.openai) throw new Error('AI service not configured: OPENAI_API_KEY is empty')
     try {
       const truncatedTexts = texts.map((text) => this.truncateText(text))
 
