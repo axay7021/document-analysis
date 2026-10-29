@@ -28,7 +28,7 @@ export const createAgent = async (req: Request, res: Response) => {
       systemPrompt: string
       config?: string | object
     }
-    const files = req.files as Express.Multer.File[]
+    const files = Array.isArray(req.files) ? req.files : []
 
     // Parse config if it's a string (from form data), otherwise use as object (from JSON)
     let parsedConfig: CreateAgentRequest['config']
@@ -182,7 +182,7 @@ export const updateAgent = async (req: Request, res: Response) => {
       config?: string | object
       documentIds?: string[] | string
     }
-    const files = req.files as Express.Multer.File[]
+    const files = Array.isArray(req.files) ? req.files : []
 
     // Normalize documentIds to always be an array or undefined
     let documentIds: string[] | undefined

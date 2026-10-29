@@ -17,7 +17,8 @@
     "rebuild-vector-db": "cross-env NODE_ENV=development tsx scripts/rebuild-vector-db.ts",
     "test:chunking": "cross-env NODE_ENV=development tsx scripts/test-chunking.ts",
     "test:chat": "cross-env NODE_ENV=development tsx scripts/test-chat-system.ts",
-    "test:socket-chat": "cross-env NODE_ENV=development tsx scripts/test-socket-chat.ts"
+    "test:socket-chat": "cross-env NODE_ENV=development tsx scripts/test-socket-chat.ts",
+    "demo": "node scripts/serve-portfolio.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.9.0",

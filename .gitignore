@@ -106,3 +106,7 @@ yarn.lock
 .script
 mddocs
 test-data
+
+# Private runtime records and generated vector indexes
+data/
+uploads/

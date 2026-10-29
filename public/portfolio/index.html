@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Explore document retrieval with source evidence and connect the original RAG backend."
+    />
+    <title>Document Analysis | Evidence workspace</title>
+    <link rel="stylesheet" href="./demo.css" />
+    <script src="./demo.js" type="module"></script>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="./index.html">folio / documents</a
+      ><span class="tag">Akshay Dobariya / Engineering portfolio</span
+      ><span class="badge" id="mode">Interactive portfolio demo</span>
+    </header>
+    <section class="hero">
+      <span class="kicker">Document intelligence / 03</span>
+      <h1>Your documents.<br />Answers you can trace.</h1>
+      <p>
+        Explore a document, ask a question, and follow the evidence. The browser
+        demo retrieves passages locally; connect your own backend to use the
+        original AI-powered RAG pipeline.
+      </p>
+      <div class="pipeline">
+        <span>Upload</span><span>Extract & chunk</span><span>Vector search</span
+        ><span>Stream answer</span><span>Source references</span>
+      </div>
+    </section>
+    <main class="workspace">
+      <aside class="panel">
+        <h2>Knowledge library</h2>
+        <div id="documents"></div>
+        <label class="secondary full"
+          >Add document<input
+            type="file"
+            id="upload"
+            accept=".txt,.md,.pdf"
+            aria-label="Add document"
+        /></label>
+        <p class="muted" id="upload-help">
+          Demo: TXT / Markdown, up to 1 MB. Files stay in this tab. PDF
+          processing is available with the backend.
+        </p>
+        <button id="connect" class="secondary full">Connect backend</button
+        ><button id="disconnect" class="secondary full" hidden>
+          Return to browser demo
+        </button>
+      </aside>
+      <section class="panel">
+        <div class="row" style="justify-content: space-between">
+          <h2>Ask your knowledge</h2>
+          <button class="secondary" id="clear">Clear chat</button>
+        </div>
+        <div
+          id="messages"
+          role="log"
+          aria-label="Conversation"
+          aria-live="polite"
+        ></div>
+        <div class="suggestions">
+          <button class="chip" data-question="What is the project timeline?">
+            Project timeline</button
+          ><button class="chip" data-question="How are documents processed?">
+            How it works</button
+          ><button
+            class="chip"
+            data-question="What are the acceptance criteria?"
+          >
+            Acceptance criteria
+          </button>
+        </div>
+        <form id="question-form" class="composer">
+          <label
+            >Ask a question<textarea
+              id="question"
+              maxlength="5000"
+              placeholder="What would you like to know?"
+              required
+            ></textarea></label
+          ><button class="primary" id="send">Ask ↗</button>
+        </form>
+        <p id="status" class="status" role="status"></p>
+      </section>
+      <aside class="panel evidence">
+        <h2>Source evidence</h2>
+        <span class="badge" id="source-label">Selected document</span>
+        <div id="evidence" class="source"></div>
+        <p class="muted">
+          Browser demo: exact passages ranked by keyword overlap, without an
+          LLM. Connected mode: streaming responses and references from the
+          existing authenticated API.
+        </p>
+      </aside>
+    </main>
+    <footer class="foot">
+      <a href="https://github.com/axay7021/document-analysis"
+        >Explore source code ↗</a
+      ><span>Express · TypeScript · FAISS · document retrieval · SSE</span>
+    </footer>
+    <dialog id="settings">
+      <form id="login-form" class="stack">
+        <div class="row" style="justify-content: space-between">
+          <h2>Connect your backend</h2>
+          <button
+            type="button"
+            id="close"
+            class="secondary"
+            aria-label="Close connection settings"
+          >
+            ×
+          </button>
+        </div>
+        <p class="muted">
+          Use your own running Document Analysis API and account. Credentials
+          are held only in this tab. Register an account using the API first;
+          see the repository README.
+        </p>
+        <label
+          >Backend origin<input
+            id="api-origin"
+            type="url"
+            placeholder="http://localhost:3000"
+            required /></label
+        ><label
+          >Email<input
+            id="email"
+            type="email"
+            autocomplete="username"
+            required /></label
+        ><label
+          >Password<input
+            id="password"
+            type="password"
+            autocomplete="current-password"
+            required /></label
+        ><button class="primary" id="login">Sign in & connect</button>
+        <p id="login-status" class="status" role="status"></p>
+      </form>
+    </dialog>
+  </body>
+</html>
