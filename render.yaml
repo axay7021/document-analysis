@@ -1,4 +1,4 @@
-# Paid resource proposal. Do not apply until the owner approves its recurring cost.
+# Free evaluation deployment requested by the owner. Local data is ephemeral.
 services:
   - type: web
     name: document-analysis-api
@@ -6,15 +6,11 @@ services:
     repo: https://github.com/axay7021/document-analysis
     branch: main
     region: oregon
-    plan: 0.5c-512mb
+    plan: free
     numInstances: 1
     buildCommand: pnpm install --frozen-lockfile && pnpm rebuild faiss-node bcrypt && pnpm build && node -e "const {IndexFlatIP}=require('faiss-node'); new IndexFlatIP(3)"
     startCommand: pnpm start
     healthCheckPath: /api/v1/health
-    disk:
-      name: private-application-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: 22.16.0
@@ -27,10 +23,10 @@ services:
       - key: OPENAI_API_KEY
         value: ""
       - key: DATA_STORAGE_PATH
-        value: /var/data/storage
+        value: ./data/storage
       - key: FAISS_INDEX_PATH
-        value: /var/data/faiss
+        value: ./data/faiss
       - key: UPLOAD_STORAGE_PATH
-        value: /var/data/uploads/documents
+        value: ./uploads/documents
       - key: FRONTEND_URL
         sync: false
