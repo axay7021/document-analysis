@@ -82,7 +82,7 @@ router.post(
       const data = await service.verifyEmail(req.body.email, req.body.code)
       res.cookie('document_access_token', data.token, {
         httpOnly: true, secure: process.env.NODE_ENV !== 'development',
-        sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/',
+        sameSite: 'none', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/',
       })
       res.json({ success: true, data, message: 'Email verified.' })
     } catch (error) {
@@ -161,7 +161,7 @@ router.post(
       )
       res.cookie('document_access_token', data.token, {
         httpOnly: true, secure: process.env.NODE_ENV !== 'development',
-        sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/',
+        sameSite: 'none', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/',
       })
       res.json({
         success: true,

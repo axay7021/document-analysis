@@ -17,7 +17,7 @@ export class AuthController {
     res.cookie('document_access_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'lax',
+      sameSite: 'none',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     })
@@ -136,7 +136,7 @@ export class AuthController {
       }
 
       await this.authService.logout(req.user.token)
-      res.clearCookie('document_access_token', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV !== 'development', path: '/' })
+      res.clearCookie('document_access_token', { httpOnly: true, sameSite: 'none', secure: process.env.NODE_ENV !== 'development', path: '/' })
 
       httpResponse(req, res, 200, 'Logout successful')
     } catch (error) {
