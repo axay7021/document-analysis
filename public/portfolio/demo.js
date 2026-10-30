@@ -26,6 +26,32 @@ function status(text, error = false) {
   $('status').textContent = text
   $('status').classList.toggle('error', error)
 }
+function renderMarkdown(target, value) {
+  const escape = (text) => text.replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char])
+  const lines = escape(value || '').split('\n')
+  const html = []
+  let list = false
+  const inline = (text) => text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+  for (const line of lines) {
+    const heading = line.match(/^(#{1,6})\s+(.+)$/)
+    const bullet = line.match(/^\s*[-*]\s+(.+)$/)
+    if (bullet) {
+      if (!list) { html.push('<ul>'); list = true }
+      html.push(`<li>${inline(bullet[1])}</li>`)
+    } else {
+      if (list) { html.push('</ul>'); list = false }
+      if (heading) html.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`)
+      else if (line.trim()) html.push(`<p>${inline(line)}</p>`)
+    }
+  }
+  if (list) html.push('</ul>')
+  target.innerHTML = html.join('')
+}
 function render() {
   const list = $('documents')
   list.replaceChildren()
@@ -188,9 +214,11 @@ $('question-form').onsubmit = async (event) => {
       }
     )
     const output = say('')
-    const text = document.createTextNode('')
+    const text = document.createElement('div')
+    text.className = 'markdown-response'
     output.append(text)
     let buffer = '',
+      responseText = '',
       ended = false,
       completed = false,
       streamError = ''
@@ -208,8 +236,10 @@ $('question-form').onsubmit = async (event) => {
         streamError = data.content || 'Generation failed'
         return
       }
-      if (data.type === 'chunk' || data.type === 'message')
-        text.appendData(data.content || '')
+      if (data.type === 'chunk' || data.type === 'message') {
+        responseText += data.content || ''
+        renderMarkdown(text, responseText)
+      }
       if (data.sources?.length) {
         $('evidence').textContent = data.sources
           .map((s) => `${s.documentName}\nReference: ${s.chunkId}`)
