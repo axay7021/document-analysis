@@ -16,7 +16,7 @@ function say(text, user = false) {
     ? 'You'
     : token
       ? 'Document assistant'
-      : 'Retrieved passage · browser demo'
+      : 'Document assistant'
   el.append(label, document.createTextNode(text))
   $('messages').append(el)
   $('messages').scrollTop = $('messages').scrollHeight
@@ -51,7 +51,7 @@ function render() {
     list.append(b)
   })
   $('evidence').textContent =
-    docs[selected]?.text || 'Upload a document to begin.'
+    docs[selected]?.text || 'Your source passages will appear here. Add a document and ask a question to start connecting the dots.'
   $('source-label').textContent = docs[selected]?.name || 'No document'
 }
 function setBusy(value) {
