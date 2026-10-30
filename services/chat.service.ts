@@ -332,7 +332,11 @@ export class ChatService {
           maxChunks: agent.config?.maxTokens
             ? Math.min(5, Math.floor(agent.config.maxTokens / 400))
             : 5,
-          minScore: 0.6,
+            // Gemini embeddings are normalized, but their cosine scores are
+            // less tightly clustered than the previous provider's scores.
+            // Keep retrieval broad and let the selected-document filter and
+            // grounded prompt enforce relevance.
+            minScore: 0.2,
         },
       })
 
@@ -587,7 +591,9 @@ export class ChatService {
           maxChunks: agent.config?.maxTokens
             ? Math.min(5, Math.floor(agent.config.maxTokens / 400))
             : 5,
-          minScore: 0.6,
+            // Gemini embeddings are normalized, but their cosine scores are
+            // less tightly clustered than the previous provider's scores.
+            minScore: 0.2,
         },
       }
 
