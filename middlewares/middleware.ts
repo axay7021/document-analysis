@@ -9,6 +9,7 @@ import morgan from 'morgan'
 import path from 'node:path'
 
 import { isDevelopment } from '../constants/application'
+import { config } from '../config'
 import { rootPath } from '../utils/helper'
 
 const app: Application = express()
@@ -17,8 +18,20 @@ const app: Application = express()
 app.set('trust proxy', 1)
 
 // Middleware
-app.use(cors({ credentials: true, origin: true }))
-app.options('*', cors())
+const allowedOrigins = new Set(
+  [config.FRONTEND_URL, 'https://documents.akshaydobariya.dev', 'https://documents.akshaydobariya.com']
+    .filter(Boolean)
+    .map((value) => String(value).replace(/\/$/, ''))
+)
+const corsOptions = {
+  credentials: true,
+  origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true)
+    return callback(new Error('Origin is not allowed'))
+  },
+}
+app.use(cors(corsOptions))
+app.options('*', cors(corsOptions))
 
 app.use(express.static(path.join(rootPath, 'public'))) // Serving static files
 
