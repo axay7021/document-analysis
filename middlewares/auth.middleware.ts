@@ -30,15 +30,25 @@ export const authMiddleware = (
     const token = authHeader.substring(7) // Remove 'Bearer ' prefix
 
     // Verify JWT token
-    const jwtSecret =
-      config.JWT_SECRET
+    const jwtSecret = config.JWT_SECRET
 
-    const decoded = jwt.verify(token, jwtSecret) as JWTPayload
+    const decoded = jwt.verify(token, jwtSecret, {
+      algorithms: ['HS256'],
+      issuer: 'ai-chat-platform',
+      audience: 'document-analysis',
+    }) as JWTPayload
 
     // Check if session exists and is valid
     const session = UserSessionModel.findByToken(token)
 
-    if (!session || !session.isActive || session.userId !== decoded.userId || new Date(session.expiresAt) <= new Date() || !UserModel.findById(decoded.userId)?.isActive) {
+    if (
+      !session ||
+      !session.isActive ||
+      session.userId !== decoded.userId ||
+      new Date(session.expiresAt) <= new Date() ||
+      !UserModel.findById(decoded.userId)?.isActive ||
+      !UserModel.findById(decoded.userId)?.emailVerified
+    ) {
       httpResponse(req, res, 401, 'Invalid or expired token.')
       return
     }
@@ -73,14 +83,24 @@ export const optionalAuthMiddleware = (
     }
 
     const token = authHeader.substring(7)
-    const jwtSecret =
-      config.JWT_SECRET
+    const jwtSecret = config.JWT_SECRET
 
     try {
-      const decoded = jwt.verify(token, jwtSecret) as JWTPayload
+      const decoded = jwt.verify(token, jwtSecret, {
+        algorithms: ['HS256'],
+        issuer: 'ai-chat-platform',
+        audience: 'document-analysis',
+      }) as JWTPayload
       const session = UserSessionModel.findByToken(token)
 
-      if (session && session.isActive && session.userId === decoded.userId && new Date(session.expiresAt) > new Date() && UserModel.findById(decoded.userId)?.isActive) {
+      if (
+        session &&
+        session.isActive &&
+        session.userId === decoded.userId &&
+        new Date(session.expiresAt) > new Date() &&
+        UserModel.findById(decoded.userId)?.isActive &&
+        UserModel.findById(decoded.userId)?.emailVerified
+      ) {
         req.user = {
           id: decoded.userId,
           sessionId: session.id,

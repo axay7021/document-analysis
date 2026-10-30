@@ -13,6 +13,9 @@ import { rootPath } from '../utils/helper'
 
 const app: Application = express()
 
+// Render sits behind one trusted ingress proxy.
+app.set('trust proxy', 1)
+
 // Middleware
 app.use(cors({ credentials: true, origin: true }))
 app.options('*', cors())

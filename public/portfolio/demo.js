@@ -79,12 +79,15 @@ async function api(path, options = {}) {
     signal: AbortSignal.timeout(120000),
   })
   if (!response.ok) {
-    let message = `Request failed (${response.status})`
+    let message = `Request failed (${response.status})`, bodyCode = ''
     try {
       const body = await response.json()
       message = body.message || body.error || message
+      bodyCode = body.code || ''
     } catch {}
-    throw new Error(message)
+    const error = new Error(message)
+    error.code = bodyCode
+    throw error
   }
   return response
 }
@@ -316,55 +319,116 @@ $('close').onclick = () => $('settings').close()
 $('disconnect').onclick = async () => {
   try { await api('/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) }) } finally { reset() }
 }
+let verifyingEmail = false
+function verificationMode(enabled) {
+  verifyingEmail = enabled
+  $('login-form').classList.toggle('verifying-email', enabled)
+  $('verification-step').hidden = !enabled
+  $('password').required = !enabled
+  $('verification-code').required = enabled
+  $('email').readOnly = enabled
+  $('login').textContent = enabled ? 'Verify email and continue' : 'Continue'
+  if (enabled) $('verification-code').focus()
+}
+function acceptSession(result) {
+  if (!result.data?.token) throw new Error('The backend did not return a login token.')
+  token = result.data.token
+  docs = []; selected = 0; agentId = ''; sessionId = ''
+  $('password').value = ''; $('verification-code').value = ''
+  verificationMode(false)
+  $('settings').close()
+  $('mode').textContent = 'Connected to your backend'
+  $('connect').hidden = true; $('disconnect').hidden = false
+  $('messages').replaceChildren()
+  say('Connected. Upload a PDF, TXT or Markdown document to begin.')
+  status('Authenticated · credentials stay in this tab')
+  render()
+}
+function useConfiguredOrigin() {
+  if (!API_ORIGIN) throw new Error('Backend deployment is not configured yet.')
+  const url = new URL(API_ORIGIN)
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost','127.0.0.1','[::1]'].includes(url.hostname))) throw new Error('Use HTTPS for a remote backend.')
+  origin = url.origin
+}
+$('verification-back').onclick = () => { verificationMode(false); $('login-status').textContent = ''; }
+$('resend-verification').onclick = async () => {
+  $('resend-verification').disabled = true
+  try {
+    useConfiguredOrigin()
+    const result = await (await api('/auth/resend-verification', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({email:$('email').value}) })).json()
+    $('login-status').textContent = result.message
+  } catch (error) { $('login-status').textContent = error.message }
+  finally { $('resend-verification').disabled = false }
+}
 $('login-form').onsubmit = async (event) => {
   event.preventDefault()
   $('login').disabled = true
-  $('login-status').textContent = 'Connecting…'
+  $('login-status').textContent = verifyingEmail ? 'Verifying…' : 'Connecting…'
   try {
-    if (!API_ORIGIN) throw new Error('Backend deployment is not configured yet.')
-    const url = new URL(API_ORIGIN)
-    if (
-      url.protocol !== 'https:' &&
-      !(
-        url.protocol === 'http:' &&
-        ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
-      )
-    )
-      throw new Error('Use HTTPS for a remote backend, or HTTP on localhost.')
-    origin = url.origin
+    useConfiguredOrigin()
+    if (verifyingEmail) {
+      const result = await (await api('/auth/verify-email', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,code:$('verification-code').value})})).json()
+      acceptSession(result)
+      return
+    }
     const registering = $('register-mode').checked
     const response = await api(registering ? '/auth/register' : '/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: $('email').value,
-        password: $('password').value,
-        ...(registering ? { firstName: $('first-name').value, lastName: $('last-name').value } : {}),
-      }),
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,password:$('password').value,
+        ...(registering ? {firstName:$('first-name').value,lastName:$('last-name').value} : {})})
     })
     const result = await response.json()
-    if (!result.data?.token)
-      throw new Error('The backend did not return a login token.')
-    token = result.data.token
-    docs = []
-    selected = 0
-    agentId = ''
-    sessionId = ''
-    $('password').value = ''
-    $('settings').close()
-    $('mode').textContent = 'Connected to your backend'
-    $('connect').hidden = true
-    $('disconnect').hidden = false
-    $('messages').replaceChildren()
-    say('Connected. Upload a PDF, TXT or Markdown document to begin.')
-    status('Authenticated · credentials stay in this tab')
-    render()
+    if (result.data?.requiresEmailVerification) {
+      $('password').value = ''
+      verificationMode(true)
+      $('login-status').textContent = 'Check your email for your verification code.'
+      return
+    }
+    acceptSession(result)
   } catch (error) {
-    origin = ''
     token = ''
+    if (error.code === 'EMAIL_NOT_VERIFIED') { verificationMode(true); $('password').value = '' }
     $('login-status').textContent = error.message
-  } finally {
-    $('login').disabled = false
-  }
+  } finally { $('login').disabled = false }
+}
+function base64url(bytes) { return btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'') }
+$('google-login').onclick = async () => {
+  try {
+    useConfiguredOrigin()
+    const proof = base64url(crypto.getRandomValues(new Uint8Array(32)))
+    sessionStorage.setItem('document-google-proof', proof)
+    const challenge = base64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(proof))))
+    location.assign(origin + '/api/v1/auth/google?challenge=' + encodeURIComponent(challenge))
+  } catch { $('login-status').textContent = 'Google sign-in could not start. Please enable browser storage and try again.' }
+}
+async function authOptions() {
+  if (!API_ORIGIN) { $('auth-setup').textContent = 'Backend setup is pending.'; return }
+  try {
+    const response = await fetch(API_ORIGIN + '/api/v1/auth/config')
+    if (!response.ok) throw new Error('Unavailable')
+    const options = await response.json()
+    $('google-login').disabled = !options.googleConfigured
+    $('auth-setup').textContent = !options.emailConfigured ? 'Email verification delivery is awaiting setup. Google sign-in also needs setup unless enabled above.' : !options.googleConfigured ? 'Email/password accounts require email verification. Google sign-in is awaiting setup.' : 'Use Google or verify your email to create an account.'
+  } catch { $('auth-setup').textContent = 'Sign-in options are temporarily unavailable. Please try again shortly.' }
+}
+async function completeGoogle() {
+  const fragment = new URLSearchParams(location.hash.slice(1))
+  const code = fragment.get('auth_code'), errorCode = fragment.get('auth_error')
+  if (!code && !errorCode) return
+  history.replaceState(null, '', location.pathname + location.search)
+  $('settings').showModal()
+  try {
+    const proof = sessionStorage.getItem('document-google-proof') || ''
+    sessionStorage.removeItem('document-google-proof')
+    if (errorCode) {
+      const errors = {USE_PASSWORD:'An account with this email already exists. Use your password to sign in.',EMAIL_PROOF_REQUIRED:'Please use email/password to verify this email directly.',GOOGLE_CANCELLED:'Google sign-in was cancelled.'}
+      throw new Error(errors[errorCode] || 'Google sign-in could not complete. Please try again.')
+    }
+    if (!proof) throw new Error('Start Google sign-in from this browser tab.')
+    useConfiguredOrigin()
+    const result = await (await api('/auth/google/exchange', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,verifier:proof})})).json()
+    acceptSession(result)
+  } catch (error) { $('login-status').textContent = error.message }
 }
 reset()
+void authOptions()
+void completeGoogle()

@@ -34,6 +34,12 @@ export interface User {
   updatedAt: Date
   isActive: boolean
   lastLoginAt?: Date
+  emailVerified?: boolean
+  googleSubject?: string
+  verificationHash?: string
+  verificationExpiresAt?: Date
+  verificationSentAt?: Date
+  verificationAttempts?: number
 }
 
 export interface UserSession {
@@ -145,8 +151,23 @@ export interface RegisterRequest {
   lastName: string
 }
 
+export type PublicUser = Omit<
+  User,
+  | 'password'
+  | 'verificationHash'
+  | 'verificationExpiresAt'
+  | 'verificationSentAt'
+  | 'verificationAttempts'
+  | 'googleSubject'
+>
+
+export interface VerificationPending {
+  requiresEmailVerification: true
+  email: string
+}
+
 export interface AuthResponse {
-  user: Omit<User, 'password'>
+  user: PublicUser
   token: string
   expiresAt: Date
 }

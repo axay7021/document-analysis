@@ -1087,3 +1087,5 @@ dialog::backdrop {
     font-size: 16px;
   }
 }
+
+.auth-divider{text-align:center;color:var(--muted);font-size:12px;margin:0}.verifying-email label:has(#password),.verifying-email .checkbox-label,.verifying-email .name-fields{display:none!important}.verifying-email #verification-step{display:flex}.stack #auth-setup{font-size:12px;margin:0}.stack #verification-code{letter-spacing:7px;font-size:21px}.verifying-email #google-login,.verifying-email .auth-divider{display:none}

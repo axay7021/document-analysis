@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express'
 
+import { AuthError } from '../services/authError'
 import { AuthService } from '../services/auth.service'
 import type { LoginRequest, RegisterRequest } from '../types/types'
 import httpResponse from '../utils/httpResponse'
@@ -51,8 +52,20 @@ export class AuthController {
         lastName,
       })
 
-      httpResponse(req, res, 201, 'User registered successfully', authResponse)
+      httpResponse(
+        req,
+        res,
+        201,
+        'Check your email for the verification code.',
+        authResponse
+      )
     } catch (error) {
+      if (error instanceof AuthError) {
+        res
+          .status(error.status)
+          .json({ success: false, message: error.message, code: error.code })
+        return
+      }
       logger.error('Registration error:', error)
 
       if (error instanceof Error) {
@@ -83,6 +96,12 @@ export class AuthController {
 
       httpResponse(req, res, 200, 'Login successful', authResponse)
     } catch (error) {
+      if (error instanceof AuthError) {
+        res
+          .status(error.status)
+          .json({ success: false, message: error.message, code: error.code })
+        return
+      }
       logger.error('Login error:', error)
 
       if (error instanceof Error) {
@@ -120,7 +139,6 @@ export class AuthController {
    */
   public getProfile = (req: Request, res: Response) => {
     try {
-
       if (!req.user?.id) {
         httpResponse(req, res, 401, 'Authentication required')
         return
