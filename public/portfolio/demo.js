@@ -32,7 +32,9 @@ function renderMarkdown(target, value) {
   })[char])
   // Model streams can place punctuation on its own line. Join those breaks
   // before parsing Markdown so lists and sentences remain readable.
+  const sourceName = docs[selected]?.name
   const normalized = String(value || '')
+    .replace(/\bDocument\s+\d+\b/g, sourceName || 'selected document')
     .replace(/\s*\n\s*([,.;:!?])/g, '$1 ')
     .replace(/([,(])\s*\n\s*/g, '$1 ')
   const lines = escape(normalized).split('\n')
