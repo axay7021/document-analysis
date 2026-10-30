@@ -26,3 +26,16 @@ Local passing tests do not establish live AI functionality. Runtime data, test a
 ## Local verification completed (29 October 2026)
 
 TypeScript build and four security regression tests pass. HTTP checks pass with an empty OpenAI key: health 200; two separate registrations/logins; owner can read their session; second user receives 404 for that session; AI message request returns 503 AI_NOT_CONFIGURED; logout revokes access (profile returns 401). These used synthetic accounts in a temporary directory outside the repository. Both Render YAML files pass the current public Blueprint JSON schema; the Render CLI is not installed, so platform-aware validation remains pending.
+
+## Hosting update — 30 October 2026
+
+Vercel personal workspace access is approved. The project is created under team_VifP2fo09snOry74VZ0VlNYH. Earlier 403/access-grant notes above are historical and no longer the blocker.
+
+Public production frontend: https://document-analysis-ivory.vercel.app
+Vercel project ID: prj_PMYPfF6DSHF0FWVQSBdaiohAWsuZ
+
+This is a real application deployment, with explicit unavailable/configuration-pending states where required services are missing. It does not imply that AI, authentication, storage or billing integrations are operational. Provider keys remain empty intentionally.
+
+Vercel GitHub integration was unavailable for repository import. The current deployment uses a direct source wrapper that downloads an immutable public GitHub commit before installation/build. Private .env files are excluded. Automatic Git deployments remain TODO; install the Vercel GitHub integration and link this repository to enable them. Use pinned pnpm versions for both install and build, because Vercel's fallback pnpm version can be too old for these manifests.
+
+The custom frontend domain is attached in Vercel but its Name.com DNS records have not been applied. Domain ownership verification is not proof that DNS routing or TLS is ready. Preserve existing portfolio and email records. See the task-level DNS_RECORDS.md for the returned per-project CNAME targets.
