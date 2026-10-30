@@ -30,7 +30,12 @@ function renderMarkdown(target, value) {
   const escape = (text) => text.replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   })[char])
-  const lines = escape(value || '').split('\n')
+  // Model streams can place punctuation on its own line. Join those breaks
+  // before parsing Markdown so lists and sentences remain readable.
+  const normalized = String(value || '')
+    .replace(/\s*\n\s*([,.;:!?])/g, '$1 ')
+    .replace(/([,(])\s*\n\s*/g, '$1 ')
+  const lines = escape(normalized).split('\n')
   const html = []
   let list = false
   const inline = (text) => text
