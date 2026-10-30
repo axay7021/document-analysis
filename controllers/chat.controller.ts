@@ -159,8 +159,11 @@ export class ChatController {
       res.setHeader('Content-Type', 'text/event-stream')
       res.setHeader('Cache-Control', 'no-cache')
       res.setHeader('Connection', 'keep-alive')
-      res.setHeader('Access-Control-Allow-Origin', '*')
-      res.setHeader('Access-Control-Allow-Headers', 'Cache-Control')
+      const requestOrigin = req.get('origin')
+      if (requestOrigin) res.setHeader('Access-Control-Allow-Origin', requestOrigin)
+      res.setHeader('Access-Control-Allow-Credentials', 'true')
+      res.setHeader('Access-Control-Allow-Headers', 'Cache-Control, Content-Type')
+      res.setHeader('Vary', 'Origin')
 
       // Disable buffering for immediate streaming
       res.setHeader('X-Accel-Buffering', 'no')
