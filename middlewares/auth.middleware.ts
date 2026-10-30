@@ -22,12 +22,13 @@ export const authMiddleware = (
   try {
     // Get token from Authorization header
     const authHeader = req.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = authHeader?.startsWith('Bearer ')
+      ? authHeader.substring(7)
+      : req.cookies?.document_access_token
+    if (!token) {
       httpResponse(req, res, 401, 'Access denied. No valid token provided.')
       return
     }
-
-    const token = authHeader.substring(7) // Remove 'Bearer ' prefix
 
     // Verify JWT token
     const jwtSecret = config.JWT_SECRET

@@ -80,6 +80,10 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const data = await service.verifyEmail(req.body.email, req.body.code)
+      res.cookie('document_access_token', data.token, {
+        httpOnly: true, secure: process.env.NODE_ENV !== 'development',
+        sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/',
+      })
       res.json({ success: true, data, message: 'Email verified.' })
     } catch (error) {
       failure(res, error)
@@ -150,13 +154,18 @@ router.post(
   ),
   (req: Request, res: Response) => {
     try {
+      const data = google.exchange(
+        req.body.code,
+        req.body.verifier,
+        req.get('origin') || ''
+      )
+      res.cookie('document_access_token', data.token, {
+        httpOnly: true, secure: process.env.NODE_ENV !== 'development',
+        sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/',
+      })
       res.json({
         success: true,
-        data: google.exchange(
-          req.body.code,
-          req.body.verifier,
-          req.get('origin') || ''
-        ),
+        data,
       })
     } catch (error) {
       failure(res, error)

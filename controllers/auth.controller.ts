@@ -13,6 +13,16 @@ export class AuthController {
     this.authService = new AuthService()
   }
 
+  private setSessionCookie(res: Response, token: string) {
+    res.cookie('document_access_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV !== 'development',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+    })
+  }
+
   /**
    * Register a new user
    */
@@ -93,7 +103,7 @@ export class AuthController {
       }
 
       const authResponse = await this.authService.login({ email, password })
-
+      this.setSessionCookie(res, authResponse.token)
       httpResponse(req, res, 200, 'Login successful', authResponse)
     } catch (error) {
       if (error instanceof AuthError) {
@@ -118,14 +128,15 @@ export class AuthController {
   /**
    * Logout user
    */
-  public logout = (req: Request, res: Response) => {
+  public logout = async (req: Request, res: Response) => {
     try {
       if (!req.user?.token) {
         httpResponse(req, res, 401, 'Authentication required')
         return
       }
 
-      this.authService.logout(req.user.token)
+      await this.authService.logout(req.user.token)
+      res.clearCookie('document_access_token', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV !== 'development', path: '/' })
 
       httpResponse(req, res, 200, 'Logout successful')
     } catch (error) {

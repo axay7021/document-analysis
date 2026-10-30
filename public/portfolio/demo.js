@@ -98,8 +98,8 @@ function setBusy(value) {
 async function api(path, options = {}) {
   const response = await fetch(origin + '/api/v1' + path, {
     ...options,
+    credentials: 'include',
     headers: {
-      ...(token ? { Authorization: 'Bearer ' + token } : {}),
       ...options.headers,
     },
     signal: AbortSignal.timeout(120000),
@@ -352,7 +352,7 @@ $('upload').onchange = async () => {
 $('connect').onclick = () => $('settings').showModal()
 $('close').onclick = () => $('settings').close()
 $('disconnect').onclick = async () => {
-  try { await api('/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) }) } finally { reset() }
+  try { await api('/auth/logout', { method: 'POST' }) } finally { reset() }
 }
 let verifyingEmail = false
 function verificationMode(enabled) {
@@ -366,8 +366,7 @@ function verificationMode(enabled) {
   if (enabled) $('verification-code').focus()
 }
 function acceptSession(result) {
-  if (!result.data?.token) throw new Error('The backend did not return a login token.')
-  token = result.data.token
+  token = 'cookie-session'
   docs = []; selected = 0; agentId = ''; sessionId = ''
   $('password').value = ''; $('verification-code').value = ''
   verificationMode(false)
@@ -376,7 +375,7 @@ function acceptSession(result) {
   $('connect').hidden = true; $('disconnect').hidden = false
   $('messages').replaceChildren()
   say('Connected. Upload a PDF, TXT or Markdown document to begin.')
-  status('Authenticated · credentials stay in this tab')
+  status('Authenticated · session persists securely across refreshes')
   render()
 }
 function useConfiguredOrigin() {
@@ -446,6 +445,24 @@ async function authOptions() {
     $('auth-setup').textContent = !options.emailConfigured ? 'Email verification delivery is awaiting setup. Google sign-in also needs setup unless enabled above.' : !options.googleConfigured ? 'Email/password accounts require email verification. Google sign-in is awaiting setup.' : 'Use Google or verify your email to create an account.'
   } catch { $('auth-setup').textContent = 'Sign-in options are temporarily unavailable. Please try again shortly.' }
 }
+async function restoreSession() {
+  if (!API_ORIGIN) return
+  try {
+    useConfiguredOrigin()
+    const response = await api('/auth/profile')
+    if (!response.ok) return
+    const result = await response.json()
+    if (result.success) {
+      token = 'cookie-session'
+      $('mode').textContent = 'Connected to your backend'
+      $('connect').hidden = true; $('disconnect').hidden = false
+      status('Authenticated · session restored securely')
+      render()
+    }
+  } catch {
+    token = ''
+  }
+}
 async function completeGoogle() {
   const fragment = new URLSearchParams(location.hash.slice(1))
   const code = fragment.get('auth_code'), errorCode = fragment.get('auth_error')
@@ -468,3 +485,4 @@ async function completeGoogle() {
 reset()
 void authOptions()
 void completeGoogle()
+void restoreSession()
