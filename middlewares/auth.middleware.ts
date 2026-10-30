@@ -2,7 +2,6 @@ import type { NextFunction, Request, Response } from 'express'
 import jwt from 'jsonwebtoken'
 
 import { config } from '../config'
-import { UserSessionModel, UserModel } from '../models'
 import httpResponse from '../utils/httpResponse'
 // Import to ensure types are loaded
 import '../types/express.types'
@@ -39,25 +38,10 @@ export const authMiddleware = (
       audience: 'document-analysis',
     }) as JWTPayload
 
-    // Check if session exists and is valid
-    const session = UserSessionModel.findByToken(token)
-
-    if (
-      !session ||
-      !session.isActive ||
-      session.userId !== decoded.userId ||
-      new Date(session.expiresAt) <= new Date() ||
-      !UserModel.findById(decoded.userId)?.isActive ||
-      !UserModel.findById(decoded.userId)?.emailVerified
-    ) {
-      httpResponse(req, res, 401, 'Invalid or expired token.')
-      return
-    }
-
     // Add user info to request
     req.user = {
       id: decoded.userId,
-      sessionId: session.id,
+      sessionId: decoded.sessionId || decoded.userId,
       token,
     }
 
@@ -92,22 +76,7 @@ export const optionalAuthMiddleware = (
         issuer: 'ai-chat-platform',
         audience: 'document-analysis',
       }) as JWTPayload
-      const session = UserSessionModel.findByToken(token)
-
-      if (
-        session &&
-        session.isActive &&
-        session.userId === decoded.userId &&
-        new Date(session.expiresAt) > new Date() &&
-        UserModel.findById(decoded.userId)?.isActive &&
-        UserModel.findById(decoded.userId)?.emailVerified
-      ) {
-        req.user = {
-          id: decoded.userId,
-          sessionId: session.id,
-          token,
-        }
-      }
+      req.user = { id: decoded.userId, sessionId: decoded.sessionId || decoded.userId, token }
     } catch (error) {
       // Invalid token, but continue without user
     }

@@ -158,7 +158,9 @@ export class AuthController {
       const user = this.authService.getUserById(req.user.id)
 
       if (!user) {
-        httpResponse(req, res, 404, 'User not found')
+        httpResponse(req, res, 200, 'Profile retrieved successfully', {
+          user: { id: req.user.id },
+        })
         return
       }
 
