@@ -88,7 +88,9 @@ export class UploadService {
           )
         } catch (error) {
           logger.error(`Failed to process document ${savedDocument.id}:`, error)
-          // Don't fail the upload, just mark as not processed
+          this.storage.deleteChunksByDocumentId(savedDocument.id)
+          this.storage.deleteDocument(savedDocument.id)
+          throw error
         }
       }
 

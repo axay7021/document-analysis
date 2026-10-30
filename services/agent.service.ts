@@ -172,9 +172,9 @@ export class AgentService {
         try {
           // Import and initialize vector database service
           const { VectorDatabaseService } = await import(
-            './vectorDatabase.service'
+            './vectorDatabase.enhanced.service'
           )
-          const vectorDb = new VectorDatabaseService()
+          const vectorDb = VectorDatabaseService.getGlobalInstance()
           vectorDb.initialize()
           logger.info(
             'Vector database refreshed after agent creation with new documents'

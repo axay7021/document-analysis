@@ -135,6 +135,19 @@ export class VectorDatabaseService {
       return false
     }
 
+    const storedIds = new Set(
+      this.fileStorage
+        .getAllDocuments()
+        .flatMap((doc) =>
+          this.fileStorage
+            .getChunksByDocumentId(doc.id)
+            .map((chunk) => chunk.id)
+        )
+    )
+    if ([...this.chunkIdMap.values()].some((id) => !storedIds.has(id))) {
+      return false
+    }
+
     return true
   }
 
@@ -264,7 +277,8 @@ export class VectorDatabaseService {
   searchSimilar(
     queryVector: number[],
     limit = 5,
-    minScore = -1.0
+    minScore = -1.0,
+    documentIds?: string[]
   ): VectorSearchResult[] {
     if (!this.index || !this.isInitialized) {
       throw new Error('Vector database not initialized')
@@ -286,7 +300,7 @@ export class VectorDatabaseService {
       // Search in FAISS index
       const results = this.index.search(
         queryVector,
-        Math.min(limit, this.index.ntotal())
+        documentIds ? this.index.ntotal() : Math.min(limit, this.index.ntotal())
       )
 
       logger.info('Vector search debug info:', {
@@ -318,19 +332,22 @@ export class VectorDatabaseService {
             }
           }
 
-          if (chunk) {
+          if (
+            chunk &&
+            (!documentIds || documentIds.includes(chunk.documentId))
+          ) {
             searchResults.push({
               chunkId,
               score,
               chunk,
             })
-          } else {
+          } else if (!chunk) {
             logger.warn(`Chunk ${chunkId} not found in file system`)
           }
         }
       }
 
-      return searchResults.sort((a, b) => b.score - a.score)
+      return searchResults.sort((a, b) => b.score - a.score).slice(0, limit)
     } catch (error) {
       logger.error('Vector search failed:', error)
       throw new Error('Failed to search vectors')

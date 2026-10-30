@@ -115,10 +115,10 @@ export class FileStorage {
   }
 
   // Chunk operations
-  saveChunks(chunks: Omit<Chunk, 'id'>[]): Chunk[] {
+  saveChunks(chunks: (Omit<Chunk, 'id'> & { id?: string })[]): Chunk[] {
     const chunksWithIds: Chunk[] = chunks.map((chunk) => ({
       ...chunk,
-      id: uuidv4(),
+      id: this.safeId(chunk.id ?? uuidv4()),
     }))
 
     chunksWithIds.forEach((chunk) => {

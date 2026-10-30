@@ -30,7 +30,8 @@ export class DocumentIngestionService {
       // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment
       const pdfParse = require('pdf-parse')
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
-      const result = await pdfParse(dataBuffer)
+      // Older PDF.js versions mishandle pooled Node Buffers with nonzero offsets.
+      const result = await pdfParse(new Uint8Array(dataBuffer))
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return
       return result.text
     } catch (error) {
@@ -176,9 +177,10 @@ export class DocumentIngestionService {
           ...chunk,
           vector: embedding,
         })
-      } catch {
-        // Continue without embedding for this chunk
-        chunksWithEmbeddings.push(chunk)
+      } catch (error) {
+        throw new Error(
+          `Failed to index document: ${error instanceof Error ? error.message : 'Unknown embedding error'}`
+        )
       }
     }
 
@@ -190,16 +192,12 @@ export class DocumentIngestionService {
    */
   saveChunks(chunks: Chunk[]): void {
     try {
-      // Save chunks to file storage
+      this.vectorDb.initialize()
+      // Persist the same IDs that the index will reference.
       this.storage.saveChunks(chunks)
 
-      // Add chunks to vector database
-      try {
-        this.vectorDb.addVectors(chunks)
-      } catch {
-        // Vector DB is optional - log but don't fail
-        // Error handling is done in VectorDatabaseService
-      }
+      // Only report successful ingestion once the saved chunks are searchable.
+      this.vectorDb.addVectors(chunks)
     } catch (error) {
       throw new Error(
         `Failed to save chunks: ${error instanceof Error ? error.message : 'Unknown error'}`

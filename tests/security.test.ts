@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -14,6 +14,155 @@ process.env.OPENAI_API_KEY = ''
 process.env.GOOGLE_GENAI_API_KEY = ''
 process.env.GEMINI_API_KEY = ''
 process.env.AI_PROVIDER = 'google'
+
+void test('PDF upload keeps searchable chunk IDs and answers with complete selected-document context', async () => {
+  const { UploadService } = await import('../services/upload.service')
+  const { FileStorage } = await import('../services/fileStorage.service')
+  const { RAGService } = await import('../services/rag.service')
+  const { VectorDatabaseService } = await import(
+    '../services/vectorDatabase.enhanced.service'
+  )
+  const storage = new FileStorage()
+  const vector = [0.9, Math.sqrt(0.19), ...Array(1534).fill(0)]
+  const query = [1, ...Array(1535).fill(0)]
+  // Use a real synthetic PDF through the production PDF parser.
+  const pdf = readFileSync(
+    join(process.cwd(), 'tests/fixtures/requirements.pdf')
+  )
+  const filePath = join(process.env.DATA_STORAGE_PATH!, 'requirements.pdf')
+  writeFileSync(filePath, pdf)
+  const upload = new UploadService() as any
+  upload.ingestionService.embeddingService = {
+    generateEmbedding: async () => vector,
+  }
+  const result = await upload.processUpload(
+    {
+      originalname: 'requirements.pdf',
+      path: filePath,
+      size: Buffer.byteLength(pdf),
+      mimetype: 'application/pdf',
+    },
+    { userId: 'pdf-test-owner' }
+  )
+  assert.equal(result.processed, true)
+  const saved = storage.getChunksByDocumentId(result.document.id)
+  assert.ok(saved.length > 0)
+  assert.ok(saved[0].content.includes('five years of TypeScript'))
+  const index = VectorDatabaseService.getGlobalInstance()
+  assert.equal(
+    index.searchSimilar(query, 5, -1, [result.document.id])[0].chunkId,
+    saved[0].id
+  )
+
+  // Higher-scoring foreign chunks must never crowd out the selected PDF.
+  const foreign = storage.saveDocument({
+    ...result.document,
+    name: 'Other user',
+    userId: 'foreign-user',
+  })
+  const foreignChunks = storage.saveChunks(
+    Array.from({ length: 6 }, (_, i) => ({
+      documentId: foreign.id,
+      index: i,
+      content: 'PRIVATE FOREIGN CONTENT',
+      vector: query,
+    }))
+  )
+  index.addVectors(foreignChunks)
+  const rag = new RAGService() as any
+  rag.isInitialized = true
+  rag.embeddingService = { generateEmbedding: async () => query }
+  let providerCalls = 0
+  rag.openai = {
+    chat: {
+      completions: {
+        create: async (request: any) => {
+          providerCalls++
+          const context = JSON.stringify(request.messages)
+          assert.ok(context.includes('five years of TypeScript'))
+          assert.ok(!context.includes('PRIVATE FOREIGN CONTENT'))
+          assert.ok(context.includes('untrusted source material'))
+          return request.stream
+            ? (async function* () {
+                yield {
+                  choices: [
+                    {
+                      delta: {
+                        content: 'Five years of TypeScript and PostgreSQL.',
+                      },
+                    },
+                  ],
+                }
+              })()
+            : {
+                choices: [
+                  {
+                    message: {
+                      content: 'Five years of TypeScript and PostgreSQL.',
+                    },
+                  },
+                ],
+              }
+        },
+      },
+    },
+  }
+  for (const streaming of [false, true]) {
+    const request = {
+      message: 'what is main requirement?',
+      docIds: [result.document.id],
+    }
+    const answer = streaming
+      ? await rag.generateStreamingResponse(request, () => {})
+      : await rag.generateResponse(request)
+    assert.match(answer.answer, /Five years/)
+    assert.equal(answer.referencedChunks[0].chunkId, saved[0].id)
+  }
+  assert.equal(providerCalls, 2)
+
+  // Old indexes with the correct count but stale chunk IDs must repair on load.
+  const mappingPath = join(
+    process.env.FAISS_INDEX_PATH!,
+    'document_index.mapping'
+  )
+  const mappings = JSON.parse(readFileSync(mappingPath, 'utf8'))
+  mappings[0][1] = 'stale-id-from-old-upload'
+  writeFileSync(mappingPath, JSON.stringify(mappings))
+  const reloaded = new VectorDatabaseService()
+  reloaded.initialize()
+  assert.equal(
+    reloaded.searchSimilar(query, 5, -1, [result.document.id])[0].chunkId,
+    saved[0].id
+  )
+})
+
+void test('failed embedding is reported as a failed upload without orphaned documents', async () => {
+  const { UploadService } = await import('../services/upload.service')
+  const { FileStorage } = await import('../services/fileStorage.service')
+  const storage = new FileStorage()
+  const before = storage.getAllDocuments().length
+  const path = join(process.env.DATA_STORAGE_PATH!, 'failed-index.txt')
+  writeFileSync(path, 'A valid document whose embedding request fails.')
+  const upload = new UploadService() as any
+  upload.ingestionService.embeddingService = {
+    generateEmbedding: async () => {
+      throw new Error('Provider unavailable')
+    },
+  }
+  await assert.rejects(
+    upload.processUpload(
+      {
+        originalname: 'failed-index.txt',
+        path,
+        size: 50,
+        mimetype: 'text/plain',
+      },
+      { userId: 'pdf-test-owner' }
+    ),
+    /Failed to index document/
+  )
+  assert.equal(storage.getAllDocuments().length, before)
+})
 
 void test('empty document allowlists do not search, embed or call a provider', async () => {
   const { RAGService } = await import('../services/rag.service')
