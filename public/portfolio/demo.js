@@ -87,6 +87,7 @@ async function api(path, options = {}) {
     } catch {}
     const error = new Error(message)
     error.code = bodyCode
+    error.status = response.status
     throw error
   }
   return response
@@ -237,7 +238,11 @@ $('question-form').onsubmit = async (event) => {
       throw new Error('The response stream ended early. Please retry.')
     status('Response complete · connected backend')
   } catch (error) {
-    status(error.message, true)
+    const message = error.status === 401 || /invalid or expired token/i.test(error.message)
+      ? 'Your session has expired. Please sign in again to continue.'
+      : error.message || 'Something went wrong. Please try again.'
+    say(message)
+    status(message, true)
   } finally {
     setBusy(false)
   }
