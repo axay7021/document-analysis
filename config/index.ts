@@ -3,7 +3,9 @@ import dotenvFlow from 'dotenv-flow'
 dotenvFlow.config()
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-  throw new Error('JWT_SECRET must be configured with at least 32 random characters')
+  throw new Error(
+    'JWT_SECRET must be configured with at least 32 random characters'
+  )
 }
 
 const config = {
@@ -20,7 +22,15 @@ const config = {
 
   // AI Integration
   OPENAI_API_KEY: process.env.OPENAI_API_KEY as string,
-  GOOGLE_GENAI_API_KEY: process.env.GOOGLE_GENAI_API_KEY as string,
+  GOOGLE_GENAI_API_KEY:
+    process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY || '',
+  AI_PROVIDER:
+    process.env.AI_PROVIDER ||
+    (process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY
+      ? 'google'
+      : 'openai'),
+  AI_CHAT_MODEL: process.env.AI_CHAT_MODEL || '',
+  AI_EMBEDDING_MODEL: process.env.AI_EMBEDDING_MODEL || '',
 
   // Authentication
   JWT_SECRET: process.env.JWT_SECRET,

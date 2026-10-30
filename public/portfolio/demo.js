@@ -406,6 +406,7 @@ async function authOptions() {
     const response = await fetch(API_ORIGIN + '/api/v1/auth/config')
     if (!response.ok) throw new Error('Unavailable')
     const options = await response.json()
+    if (options.aiConfigured) { const note = document.querySelector('.provider-note'); if (note) note.textContent = 'Gemini connected · ready to index documents and answer questions.' }
     $('google-login').disabled = !options.googleConfigured
     $('auth-setup').textContent = !options.emailConfigured ? 'Email verification delivery is awaiting setup. Google sign-in also needs setup unless enabled above.' : !options.googleConfigured ? 'Email/password accounts require email verification. Google sign-in is awaiting setup.' : 'Use Google or verify your email to create an account.'
   } catch { $('auth-setup').textContent = 'Sign-in options are temporarily unavailable. Please try again shortly.' }

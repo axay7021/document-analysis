@@ -1,3 +1,4 @@
+import { aiConfigured } from '../services/aiProvider'
 import { Router } from 'express'
 import config from '../config'
 
@@ -11,12 +12,20 @@ router.use('/auth', authRoutes)
 
 // Fail clearly before accepting AI-dependent uploads or opening SSE streams.
 router.use((req, res, next) => {
-  const needsAI = req.method === 'POST' && (
-    (req.path.startsWith('/prompts') && req.headers['content-type']?.includes('multipart/form-data')) ||
-    req.path.endsWith('/messages')
-  )
-  if (needsAI && !config.OPENAI_API_KEY) {
-    res.status(503).json({ success: false, code: 'AI_NOT_CONFIGURED', message: 'AI service is not configured yet. The owner must add the OpenAI key.' })
+  const needsAI =
+    req.method === 'POST' &&
+    ((req.path.startsWith('/prompts') &&
+      req.headers['content-type']?.includes('multipart/form-data')) ||
+      req.path.endsWith('/messages'))
+  if (needsAI && !aiConfigured()) {
+    res
+      .status(503)
+      .json({
+        success: false,
+        code: 'AI_NOT_CONFIGURED',
+        message:
+          'AI service is not configured yet. The owner must configure the selected AI provider.',
+      })
     return
   }
   next()

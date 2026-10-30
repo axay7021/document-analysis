@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 
 import config from '../config'
+import { createAIClient } from './aiProvider'
 import type { EmbeddingModel } from '../types/types'
 
 export class EmbeddingService {
@@ -8,13 +9,17 @@ export class EmbeddingService {
   private model: EmbeddingModel
 
   constructor(embeddingModel?: EmbeddingModel) {
-    this.openai = config.OPENAI_API_KEY ? new OpenAI({ apiKey: config.OPENAI_API_KEY }) : null
+    this.openai = createAIClient()
 
     this.model = embeddingModel || {
-      name: 'text-embedding-ada-002',
+      name:
+        config.AI_EMBEDDING_MODEL ||
+        (config.AI_PROVIDER === 'google'
+          ? 'gemini-embedding-001'
+          : 'text-embedding-ada-002'),
       dimensions: 1536,
-      maxTokens: 8000,
-      provider: 'openai',
+      maxTokens: config.AI_PROVIDER === 'google' ? 2048 : 8000,
+      provider: config.AI_PROVIDER === 'google' ? 'google' : 'openai',
     }
   }
 
@@ -22,7 +27,8 @@ export class EmbeddingService {
    * Generate embedding for a text string
    */
   async generateEmbedding(text: string): Promise<number[]> {
-    if (!this.openai) throw new Error('AI service not configured: OPENAI_API_KEY is empty')
+    if (!this.openai)
+      throw new Error('AI service is not configured for the selected provider')
     try {
       // Validate input text
       if (!text || typeof text !== 'string') {
@@ -34,10 +40,13 @@ export class EmbeddingService {
 
       const response = await this.openai.embeddings.create({
         model: this.model.name,
+        ...(this.model.provider === 'google'
+          ? { dimensions: this.model.dimensions }
+          : {}),
         input: truncatedText,
       })
 
-      return response.data[0].embedding
+      return this.validateEmbedding(response.data[0].embedding)
     } catch (error) {
       console.error('Failed to generate embedding:', error)
       throw new Error(
@@ -50,22 +59,43 @@ export class EmbeddingService {
    * Generate embeddings for multiple texts in batch
    */
   async generateBatchEmbeddings(texts: string[]): Promise<number[][]> {
-    if (!this.openai) throw new Error('AI service not configured: OPENAI_API_KEY is empty')
+    if (!this.openai)
+      throw new Error('AI service is not configured for the selected provider')
     try {
       const truncatedTexts = texts.map((text) => this.truncateText(text))
 
       const response = await this.openai.embeddings.create({
         model: this.model.name,
+        ...(this.model.provider === 'google'
+          ? { dimensions: this.model.dimensions }
+          : {}),
         input: truncatedTexts,
       })
 
-      return response.data.map((item) => item.embedding)
+      if (response.data.length !== texts.length)
+        throw new Error('Embedding response count does not match input count')
+      return response.data.map((item) => this.validateEmbedding(item.embedding))
     } catch (error) {
       console.error('Failed to generate batch embeddings:', error)
       throw new Error(
         `Batch embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
     }
+  }
+
+  private validateEmbedding(vector: number[]): number[] {
+    if (
+      vector.length !== this.model.dimensions ||
+      vector.some((value) => !Number.isFinite(value))
+    ) {
+      throw new Error('Embedding dimensions do not match the vector index')
+    }
+    if (this.model.provider !== 'google') return vector
+    const norm = Math.sqrt(
+      vector.reduce((sum, value) => sum + value * value, 0)
+    )
+    if (!norm) throw new Error('Embedding vector has zero length')
+    return vector.map((value) => value / norm)
   }
 
   /**

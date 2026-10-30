@@ -11,6 +11,9 @@ process.env.DATA_STORAGE_PATH = mkdtempSync(
 )
 process.env.FAISS_INDEX_PATH = join(process.env.DATA_STORAGE_PATH, 'faiss')
 process.env.OPENAI_API_KEY = ''
+process.env.GOOGLE_GENAI_API_KEY = ''
+process.env.GEMINI_API_KEY = ''
+process.env.AI_PROVIDER = 'google'
 
 void test('empty document allowlists do not search, embed or call a provider', async () => {
   const { RAGService } = await import('../services/rag.service')
@@ -363,5 +366,36 @@ void test('Google authorization code flow binds state, PKCE, nonce and a single-
     else process.env.GOOGLE_CLIENT_ID = previousId
     if (previousSecret === undefined) delete process.env.GOOGLE_CLIENT_SECRET
     else process.env.GOOGLE_CLIENT_SECRET = previousSecret
+  }
+})
+
+void test('Gemini embeddings request fixed dimensions and normalize vectors for cosine retrieval', async () => {
+  const config = (await import('../config')).config
+  const { EmbeddingService } = await import('../services/embedding.service')
+  const previousKey = config.GOOGLE_GENAI_API_KEY
+  config.GOOGLE_GENAI_API_KEY = 'synthetic-test-key'
+  try {
+    const service = new EmbeddingService() as any
+    let requested: any
+    const vector = [3, 4, ...Array(1534).fill(0)]
+    service.openai.embeddings.create = async (request: any) => {
+      requested = request
+      return { data: [{ embedding: vector }] }
+    }
+    const result = await service.generateEmbedding('Synthetic document passage')
+    assert.equal(requested.model, 'gemini-embedding-001')
+    assert.equal(requested.dimensions, 1536)
+    assert.equal(result.length, 1536)
+    assert.equal(result[0], 0.6)
+    assert.equal(result[1], 0.8)
+    service.openai.embeddings.create = async () => ({
+      data: [{ embedding: [1, 2, 3] }],
+    })
+    await assert.rejects(
+      service.generateEmbedding('Synthetic passage'),
+      /dimensions/
+    )
+  } finally {
+    config.GOOGLE_GENAI_API_KEY = previousKey
   }
 })

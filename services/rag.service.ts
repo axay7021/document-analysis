@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 
-import config from '../config'
+import { createAIClient, chatModel } from './aiProvider'
 import type { RAGResponse } from '../types/types'
 import logger from '../utils/logger'
 import { EmbeddingService } from './embedding.service'
@@ -27,7 +27,7 @@ export class RAGService {
   private isInitialized = false
 
   constructor() {
-    this.openai = config.OPENAI_API_KEY ? new OpenAI({ apiKey: config.OPENAI_API_KEY }) : null
+    this.openai = createAIClient()
     this.embeddingService = new EmbeddingService()
     this.vectorService = VectorDatabaseService.getGlobalInstance()
     this.storage = new FileStorage()
@@ -52,7 +52,10 @@ export class RAGService {
    */
   async generateResponse(request: RAGRequest): Promise<RAGResponse> {
     if (!request.docIds.length) {
-      return { answer: 'Select a document before asking a question.', referencedChunks: [] }
+      return {
+        answer: 'Select a document before asking a question.',
+        referencedChunks: [],
+      }
     }
     if (!this.isInitialized) {
       this.initialize()
@@ -67,7 +70,8 @@ export class RAGService {
 
     const startTime = Date.now()
 
-    if (!this.openai) throw new Error('AI service not configured: OPENAI_API_KEY is empty')
+    if (!this.openai)
+      throw new Error('AI service is not configured for the selected provider')
     try {
       // Validate request message
       if (
@@ -98,7 +102,8 @@ export class RAGService {
       )
       if (filteredChunks.length === 0) {
         return {
-          answer: "I couldn't find relevant information in your selected documents.",
+          answer:
+            "I couldn't find relevant information in your selected documents.",
           referencedChunks: [],
         }
       }
@@ -122,7 +127,7 @@ export class RAGService {
 
       // 5. Generate response using OpenAI
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4.1',
+        model: chatModel(),
         messages: [
           {
             role: 'user',
@@ -177,7 +182,10 @@ export class RAGService {
     }) => void
   ): Promise<RAGResponse> {
     if (!request.docIds.length) {
-      return { answer: 'Select a document before asking a question.', referencedChunks: [] }
+      return {
+        answer: 'Select a document before asking a question.',
+        referencedChunks: [],
+      }
     }
     if (!this.isInitialized) {
       throw new Error('RAG service not initialized')
@@ -185,7 +193,8 @@ export class RAGService {
 
     const startTime = Date.now()
 
-    if (!this.openai) throw new Error('AI service not configured: OPENAI_API_KEY is empty')
+    if (!this.openai)
+      throw new Error('AI service is not configured for the selected provider')
     try {
       // Validate request message
       if (
@@ -225,7 +234,8 @@ export class RAGService {
         request.docIds.includes(result.chunk?.documentId || '')
       )
       if (filteredChunks.length === 0) {
-        const answer = "I couldn't find relevant information in your selected documents."
+        const answer =
+          "I couldn't find relevant information in your selected documents."
         onChunk({ type: 'message', content: answer, sources: [] })
         return { answer, referencedChunks: [] }
       }
@@ -256,7 +266,7 @@ export class RAGService {
 
       // 5. Stream response from OpenAI (use gpt-3.5-turbo for better token efficiency)
       const stream = await this.openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: chatModel(),
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
@@ -371,8 +381,11 @@ When referencing information, mention which document it came from if relevant.`
     const responses: RAGResponse[] = []
 
     for (const request of requests) {
-      if (!this.openai) throw new Error('AI service not configured: OPENAI_API_KEY is empty')
-    try {
+      if (!this.openai)
+        throw new Error(
+          'AI service is not configured for the selected provider'
+        )
+      try {
         const response = await this.generateResponse(request)
         responses.push(response)
       } catch (error) {

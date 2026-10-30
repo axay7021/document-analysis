@@ -1,3 +1,4 @@
+import { aiConfigured } from '../../services/aiProvider'
 /* eslint-disable @typescript-eslint/no-misused-promises */
 import { Router, type Request, type Response } from 'express'
 import rateLimit from 'express-rate-limit'
@@ -51,17 +52,16 @@ function failure(res: Response, error: unknown) {
       .status(error.status)
       .json({ success: false, message: error.message, code: error.code })
   else
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: 'Unable to complete sign-in. Please try again.',
-        code: 'AUTH_FAILED',
-      })
+    res.status(500).json({
+      success: false,
+      message: 'Unable to complete sign-in. Please try again.',
+      code: 'AUTH_FAILED',
+    })
 }
 router.get('/config', (_req, res) =>
   res.json({
     emailVerificationRequired: true,
+    aiConfigured: aiConfigured(),
     emailConfigured: verificationMailer.configured(),
     googleConfigured: google.configured(),
   })
