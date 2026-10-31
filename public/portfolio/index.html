@@ -12,277 +12,78 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
     <meta name="theme-color" content="#305bb9" />
+    <script src="./theme.js"></script>
     <link rel="stylesheet" href="./demo.css" />
     <script src="./config.js"></script>
     <script src="./demo.js" type="module"></script>
   </head>
   <body>
-    <a class="skip" href="#workspace">Skip to workspace</a>
-    <header class="header">
-      <a class="brand" href="./index.html"
-        ><span class="brand-icon" aria-hidden="true"
-          ><svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.7"
-          >
-            <path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6" /></svg></span
-        >document<span class="brand-light">/ analysis</span></a
-      >
-      <nav aria-label="Main navigation">
-        <a class="active-nav" href="#workspace">Workspace</a
-        ><a href="#workflow">How it works</a>
-      </nav>
-      <a
-        class="source-link"
-        href="https://github.com/axay7021/document-analysis"
-        >View source <span aria-hidden="true">↗</span></a
-      >
-    </header>
-    <main class="main">
-      <section class="hero">
-        <div>
-          <p class="kicker">
-            <span></span> A CLEARER PICTURE, ONE QUESTION AT A TIME
-          </p>
-          <h1>Less searching.<br /><span>More understanding.</span></h1>
-          <p>
-            Your documents hold the answers. Bring them together,<br
-              class="desktop-break"
-            />
-            ask better questions, and follow the evidence.
-          </p>
+    <a class="skip" href="#question">Skip to chat</a>
+    <div class="app-shell" id="workspace">
+      <aside class="library" id="library" aria-label="Document library">
+        <div class="sidebar-brand">
+          <a class="brand" href="./index.html" aria-label="Document Analysis home">
+            <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6"/></svg></span>
+            <span>document<span class="brand-light"> / analysis</span></span>
+          </a>
+          <button class="icon-button mobile-only" id="close-library" aria-label="Close document library"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
         </div>
-        <div class="hero-note">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            aria-hidden="true"
-          >
-            <path
-              d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"
-            /></svg
-          ><span>A little more context.<br />A lot more clarity.</span>
+        <button class="new-chat" id="clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New chat<kbd aria-hidden="true">↗</kbd></button>
+        <div class="library-heading"><h2>Your documents</h2><span id="document-count">0</span></div>
+        <p class="sidebar-caption">Choose a document to start a conversation.</p>
+        <div class="document-list" id="documents"></div>
+        <div class="library-intro"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h4"/></svg><p>A little context goes a long way.</p><span>Your documents will live here.</span></div>
+        <label class="upload-zone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m-4 4 4-4 4 4M4 16v4h16v-4"/></svg><strong>Add a document</strong><span>PDF, TXT or Markdown · up to 10 MB</span><input type="file" id="upload" accept=".txt,.md,.pdf" aria-label="Add document"/></label>
+        <div class="library-bottom">
+          <a class="project-link" href="https://www.akshaydobariya.dev/projects/document-analysis">About this project <span aria-hidden="true">↗</span></a>
+          <div class="account-card"><span class="account-avatar" aria-hidden="true">D</span><div><strong id="account-label">Your workspace</strong><span id="account-caption">Sign in to bring your documents</span></div></div>
+          <button id="connect" class="primary full">Sign in / Create account <span aria-hidden="true">→</span></button>
+          <button id="disconnect" class="secondary full" hidden>Sign out</button>
+          <p class="muted" id="upload-help">Evaluation storage is temporary. Keep a copy of your documents.</p>
         </div>
-      </section>
-      <section
-        id="workspace"
-        class="workspace"
-        aria-label="Document research workspace"
-      >
-        <div class="workspace-top">
-          <div>
-            <span class="workspace-icon" aria-hidden="true">D</span
-            ><strong>Research workspace</strong><span class="divider">/</span
-            ><span>Your library</span>
-          </div>
-          <span class="badge" id="mode">Document Analysis</span>
-        </div>
-        <aside class="panel library">
-          <div class="section-heading">
-            <h2>Your documents</h2>
-            <span class="small-label">LIBRARY</span>
-          </div>
-          <div class="library-intro">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-              aria-hidden="true"
-            >
-              <path d="M5 3h10l4 4v14H5zM14 3v5h5M8 12h8M8 16h5" />
-            </svg>
-            <h3>A home for your knowledge</h3>
-            <p>Add a document to give your questions a starting point.</p>
-          </div>
-          <div id="documents"></div>
-          <label class="upload-zone"
-            ><span class="upload-icon" aria-hidden="true">+</span
-            ><strong>Add a document</strong
-            ><span>PDF, TXT or Markdown · up to 10 MB</span
-            ><input
-              type="file"
-              id="upload"
-              accept=".txt,.md,.pdf"
-              aria-label="Add document"
-          /></label>
-          <div class="library-bottom">
-            <p class="private-note">
-              <span aria-hidden="true">◈</span> Your own document workspace
-            </p>
-            <button id="connect" class="primary full">
-              Sign in / Create account <span aria-hidden="true">↗</span></button
-            ><button id="disconnect" class="secondary full" hidden>
-              Sign out
-            </button>
-            <p class="muted" id="upload-help">
-              Sign in to upload. Free evaluation storage resets when the service
-              sleeps, restarts or redeploys. Keep your own copies.
-            </p>
-          </div>
-        </aside>
-        <section class="panel conversation">
-          <div class="section-heading">
-            <h2>Ask your documents</h2>
-            <button class="icon-button" id="clear" aria-label="Clear chat">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                aria-hidden="true"
-              >
-                <path d="M4 10a8 8 0 1 1 0 5M4 4v6h6" /></svg
-              ><span>New chat</span>
-            </button>
-          </div>
-          <div class="conversation-intro">
-            <div class="assistant-mark" aria-hidden="true">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-              >
-                <path
-                  d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"
-                />
-              </svg>
+      </aside>
+      <main class="chat-main" id="chat-main">
+        <header class="chat-header">
+          <div class="header-left"><button class="icon-button" id="toggle-library" aria-label="Toggle document library" aria-controls="library" aria-expanded="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button><div class="workspace-name">Document Analysis<span id="mode">Your research workspace</span></div></div>
+          <div class="header-actions"><button class="icon-button theme-toggle" id="toggle-theme" type="button" aria-label="Switch to dark mode" aria-pressed="false"><svg class="moon-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/></svg><svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></svg></button><button class="secondary sources-toggle" id="toggle-evidence" aria-controls="source-panel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4zM12 6v16"/></svg>Sources<span id="source-count" class="count-badge">0</span></button></div>
+        </header>
+        <p class="preview-banner" id="preview-banner" hidden>Local layout preview · sample document and sample answers</p>
+        <div class="chat-scroll" id="chat-scroll" tabindex="0" aria-label="Chat history">
+          <div class="chat-content">
+            <section class="conversation-intro" id="conversation-intro">
+              <div class="welcome-symbol" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="m16 3 3.8 9.2L29 16l-9.2 3.8L16 29l-3.8-9.2L3 16l9.2-3.8z"/></svg></div>
+              <p class="eyebrow">YOUR DOCUMENTS. A NEW PERSPECTIVE.</p>
+              <h1>What would you like<br/>to understand?</h1>
+              <p class="welcome-description">Bring a document. Ask a question.<br/>Go from a long read to a clear answer, with the sources to back it up.</p>
+              <div class="welcome-document" id="welcome-document"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h4"/></svg><span id="welcome-document-label">Add your first document to begin</span></div>
+            </section>
+            <div id="messages" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"></div>
+            <div class="suggestions" id="suggestions">
+              <button class="chip" data-question="What are the key takeaways from this document?"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h8M3 6h.01M3 12h.01M3 18h.01"/></svg><strong>The big picture</strong><span>Summarize the key takeaways</span></button>
+              <button class="chip" data-question="What are the next steps and action items?"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 7 2 2 4-4M13 7h7M4 15l2 2 4-4M13 15h7"/></svg><strong>Make it actionable</strong><span>Find decisions and next steps</span></button>
+              <button class="chip" data-question="What are the acceptance criteria?"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5M7 10h6M10 7v6"/></svg><strong>Look a little closer</strong><span>Understand the important details</span></button>
             </div>
-            <p class="small-label">THINK TOGETHER</p>
-            <h2>Where would you like<br />to begin?</h2>
-            <p>
-              Turn a long read into a useful conversation.<br />Start with a
-              question. We’ll keep the source close.
-            </p>
           </div>
-          <div
-            id="messages"
-            role="log"
-            aria-label="Conversation"
-            aria-live="polite"
-          ></div>
-          <div class="suggestions">
-            <button
-              class="chip"
-              data-question="What are the key takeaways from this document?"
-            >
-              Find the key takeaways <span aria-hidden="true">↗</span></button
-            ><button
-              class="chip"
-              data-question="What are the next steps and action items?"
-            >
-              Identify next steps <span aria-hidden="true">↗</span></button
-            ><button
-              class="chip"
-              data-question="What are the acceptance criteria?"
-            >
-              Clarify the details <span aria-hidden="true">↗</span>
-            </button>
-          </div>
+        </div>
+        <div class="composer-dock">
+          <div class="composer-context"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v5h4"/></svg><span id="chat-document">No document selected</span><span class="context-dot" aria-hidden="true">·</span><span id="chat-context">Add a document to get started</span></div>
           <form id="question-form" class="composer">
-            <label for="question">Your question</label>
-            <div>
-              <textarea
-                id="question"
-                maxlength="5000"
-                rows="2"
-                placeholder="Ask something about your document…"
-                required
-              ></textarea
-              ><button
-                class="primary send-button"
-                id="send"
-                aria-label="Ask question"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.7"
-                  aria-hidden="true"
-                >
-                  <path d="M12 19V5m-6 6 6-6 6 6" />
-                </svg>
-              </button>
-            </div>
-            <p>Answers are grounded in your selected document.</p>
+            <label class="sr-only" for="question">Ask a question about your document</label>
+            <textarea id="question" maxlength="5000" rows="1" placeholder="Ask anything about your document…" required></textarea>
+            <div class="composer-toolbar"><button class="icon-button" type="button" id="attach-document" aria-label="Attach a document"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 12 7-7a4 4 0 0 1 6 6L10 22a6 6 0 0 1-8-8L13 3M6 15 17 4" transform="translate(1 0) scale(.9)"/></svg></button><span class="composer-hint">Shift + Enter for a new line</span><button class="primary send-button" id="send" aria-label="Ask question"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button></div>
           </form>
           <p id="status" class="status" role="status"></p>
-        </section>
-        <aside class="panel evidence">
-          <div class="section-heading">
-            <h2>Source evidence</h2>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-              aria-hidden="true"
-            >
-              <path d="M9 3H4v18h16V8l-5-5H9M14 3v6h6M8 13h8M8 17h5" />
-            </svg>
-          </div>
-          <p class="evidence-caption">CONTEXT YOU CAN COME BACK TO</p>
-          <div class="source-card">
-            <span class="source-number">01</span
-            ><span class="badge" id="source-label">No document</span>
-            <div id="evidence" class="source"></div>
-          </div>
-          <div class="evidence-note">
-            <span aria-hidden="true">↳</span>
-            <p>
-              Answers with a paper trail.<br /><span
-                >Source references appear here when your document has been
-                indexed and a question is answered.</span
-              >
-            </p>
-          </div>
-          <div class="provider-note">
-            <span class="status-dot"></span>
-            <p>
-              Live AI setup pending<br /><small
-                >Indexing and answers unlock when the owner adds the provider
-                key.</small
-              >
-            </p>
-          </div>
-        </aside>
-      </section>
-      <section id="workflow" class="workflow">
-        <article>
-          <span>01</span>
-          <div>
-            <h2>Bring your context</h2>
-            <p>Upload a PDF, text file, or Markdown document.</p>
-          </div>
-        </article>
-        <article>
-          <span>02</span>
-          <div>
-            <h2>Ask a better question</h2>
-            <p>Find the details that matter to your work.</p>
-          </div>
-        </article>
-        <article>
-          <span>03</span>
-          <div>
-            <h2>Follow the evidence</h2>
-            <p>Keep your answers connected to their sources.</p>
-          </div>
-        </article>
-      </section>
-    </main>
-    <footer class="foot">
-      <span>Built for a little less information overload.</span
-      ><a href="https://www.akshaydobariya.dev/projects/document-analysis"
-        >Explore the project <span aria-hidden="true">↗</span></a
-      >
-    </footer>
+          <p class="composer-footnote">Grounded in your document. Always check the source.</p>
+        </div>
+      </main>
+      <aside class="evidence" id="source-panel" aria-label="Source evidence" hidden>
+        <div class="evidence-header"><div><p class="eyebrow">FOLLOW THE PAPER TRAIL</p><h2>Source evidence</h2></div><button class="icon-button" id="close-evidence" aria-label="Close source evidence"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+        <div class="source-card"><div class="source-card-heading"><span class="source-number">01</span><span id="source-label">No document selected</span></div><div id="evidence" class="source"></div></div>
+        <p class="evidence-note">A clear answer starts with a reliable source. Check the references here as you read.</p>
+        <p class="provider-note">Sign in and add a document to retrieve supporting sources.</p>
+      </aside>
+      <button class="drawer-backdrop" id="drawer-backdrop" aria-label="Close panel" tabindex="-1" hidden></button>
+    </div>
     <dialog id="settings">
       <form id="login-form" class="stack">
         <div class="modal-heading">

@@ -8,9 +8,13 @@ A TypeScript/Express document intelligence backend with a new portfolio interfac
 node scripts/serve-portfolio.mjs
 ```
 
-Open `http://127.0.0.1:4175`. No install, account or AI key is required. Select a sample or add a TXT/Markdown file (up to 1 MB), ask a question and inspect an exact source passage. Files remain in this tab. This mode uses **local keyword retrieval, not AI generation**. PDF parsing requires the connected backend.
+Open `http://127.0.0.1:4175/?preview=1` to review the full-height chat redesign with a clearly labelled fictional document and sample responses. No account, install or AI key is required, and preview mode sends no requests to the live backend. Try a suggested question, Sources, the collapsible library and New chat. Preview mode is restricted to localhost/127.0.0.1.
 
-![Evidence workspace](docs/portfolio-preview.png)
+Open `http://127.0.0.1:4175/` for the standard connected interface. Uploads and live answers use the existing backend and require sign-in.
+
+See [UI_DESIGN.md](UI_DESIGN.md) for the proposed flow and verification scope. The redesign includes responsive library/source drawers and light/dark appearance controls. The owner has approved production release.
+
+![Chat workspace redesign](docs/chat-redesign-desktop.png)
 
 ## Existing backend capabilities
 

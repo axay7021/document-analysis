@@ -1,4 +1,5 @@
 const $ = (id) => document.getElementById(id)
+const LOCAL_PREVIEW = ['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParams(location.search).get('preview') === '1'
 const API_ORIGIN = window.DOCUMENT_API_ORIGIN || ''
 const samples = []
 let docs = [...samples],
@@ -19,7 +20,8 @@ function say(text, user = false) {
       : 'Document assistant'
   el.append(label, document.createTextNode(text))
   $('messages').append(el)
-  $('messages').scrollTop = $('messages').scrollHeight
+  $('chat-main').classList.add('has-conversation')
+  scrollChat(user)
   return el
 }
 function status(text, error = false) {
@@ -68,27 +70,41 @@ function render() {
     b.textContent = doc.name
     b.setAttribute('aria-pressed', String(i === selected))
     const small = document.createElement('small')
-    small.textContent = token
+    small.textContent = LOCAL_PREVIEW ? 'Sample document · local preview' : token
       ? 'Uploaded to your backend'
       : `${doc.text.length.toLocaleString()} characters · local`
     b.append(small)
     b.disabled = busy
     b.onclick = () => {
+      saveDocumentChat()
       selected = i
       agentId = doc.agentId || ''
-      sessionId = ''
-      $('evidence').textContent = doc.text
+      sessionId = doc.chatSession || ''
+      restoreDocumentChat(doc)
+      $('evidence').textContent = doc.evidence || doc.text
       $('source-label').textContent = doc.name
       render()
+      closeLibraryOnMobile()
+      status('Selected · ' + doc.name)
     }
     list.append(b)
   })
   $('evidence').textContent =
-    docs[selected]?.text || 'Your source passages will appear here. Add a document and ask a question to start connecting the dots.'
-  $('source-label').textContent = docs[selected]?.name || 'No document'
+    docs[selected]?.evidence || docs[selected]?.text || 'Your source passages will appear here. Add a document and ask a question to start connecting the dots.'
+  $('source-label').textContent = docs[selected]?.name || 'No document selected'
+  $('document-count').textContent = String(docs.length)
+  $('source-count').textContent = String(docs[selected]?.sourceCount || 0)
+  $('chat-document').textContent = docs[selected]?.name || 'No document selected'
+  $('chat-context').textContent = docs[selected] ? 'Using this document' : 'Add a document to get started'
+  $('welcome-document-label').textContent = docs[selected]?.name || 'Add your first document to begin'
+  if (!LOCAL_PREVIEW) {
+    $('account-label').textContent = token ? 'Signed in' : 'Your workspace'
+    $('account-caption').textContent = token ? 'Your document workspace' : 'Sign in to bring your documents'
+  }
 }
 function setBusy(value) {
   busy = value
+  $('messages').setAttribute('aria-busy', String(value))
   for (const id of [
     'send',
     'upload',
@@ -96,6 +112,7 @@ function setBusy(value) {
     'disconnect',
     'clear',
     'question',
+    'attach-document',
   ])
     $(id).disabled = value
   document
@@ -136,9 +153,7 @@ function reset() {
   $('disconnect').hidden = true
   $('connect').hidden = false
   $('messages').replaceChildren()
-  say(
-    'Sign in or create an account, then upload a document to ask questions.'
-  )
+  $('chat-main').classList.remove('has-conversation')
   status(API_ORIGIN ? 'Sign in to upload documents.' : 'Backend deployment is not configured yet.')
   render()
 }
@@ -146,59 +161,29 @@ $('question-form').onsubmit = async (event) => {
   event.preventDefault()
   const question = $('question').value.trim()
   if (!question || busy) return
-  if (!token) { status('Sign in before asking a question.', true); return }
+  if (!token) { status('Sign in before asking a question.', true); $('settings').showModal(); return }
   if (!docs.length) {
     status('Upload a document before asking a question.', true)
     return
   }
   say(question, true)
   $('question').value = ''
+  resizeComposer()
   setBusy(true)
   status(token ? 'Retrieving and generating…' : 'Searching this document…')
   try {
-    if (!token) {
-      const terms = question.toLowerCase().match(/[a-z0-9]+/g) || []
-      const stop = new Set([
-        'what',
-        'is',
-        'the',
-        'a',
-        'an',
-        'are',
-        'how',
-        'do',
-        'does',
-        'of',
-        'to',
-        'and',
-        'in',
-        'it',
-        'can',
-        'you',
-        'me',
-      ])
-      const words = terms.filter((t) => !stop.has(t))
-      const passages = docs[selected].text
-        .split(/\n\s*\n/)
-        .map((text) => ({
-          text,
-          score: words.reduce(
-            (n, w) => n + (text.toLowerCase().includes(w) ? 1 : 0),
-            0
-          ),
-        }))
-        .sort((a, b) => b.score - a.score)
-      const best = passages[0]
-      if (!best || !best.score) {
-        say(
-          'No matching passage found in the selected document. Try a more specific question or choose another document.'
-        )
-        status('No source match')
-      } else {
-        say(best.text)
-        $('evidence').textContent = best.text
-        status('Exact passage retrieved · ' + docs[selected].name)
-      }
+    if (LOCAL_PREVIEW) {
+      const { sampleAnswer } = await import('./preview-data.js')
+      const sample = sampleAnswer(question)
+      const output = say('')
+      const text = document.createElement('div')
+      text.className = 'markdown-response'
+      output.append(text)
+      renderMarkdown(text, sample.answer)
+      updateEvidence(sample.evidence, 1)
+      answerActions(output, sample.answer, sample.evidence, 1)
+      scrollChat(true)
+      status('Local preview · sample response, no AI request sent')
       return
     }
     if (!agentId) throw new Error('Upload a document before asking a question.')
@@ -221,6 +206,7 @@ $('question-form').onsubmit = async (event) => {
       }
     )
     const output = say('')
+    output.classList.add('is-streaming')
     const text = document.createElement('div')
     text.className = 'markdown-response'
     output.append(text)
@@ -228,7 +214,9 @@ $('question-form').onsubmit = async (event) => {
       responseText = '',
       ended = false,
       completed = false,
-      streamError = ''
+      streamError = '',
+      answerEvidence = '',
+      answerSourceCount = 0
     const reader = response.body.getReader(),
       decoder = new TextDecoder()
     function handle(frame) {
@@ -248,13 +236,13 @@ $('question-form').onsubmit = async (event) => {
         renderMarkdown(text, responseText)
       }
       if (data.sources?.length) {
-        $('evidence').textContent = data.sources
-          .map((s) => `${s.documentName}\nReference: ${s.chunkId}`)
-          .join('\n\n')
+        answerEvidence = data.sources.map((s) => `${s.documentName}\nReference: ${s.chunkId}`).join('\n\n')
+        answerSourceCount = data.sources.length
+        updateEvidence(answerEvidence, answerSourceCount)
       }
       if (data.type === 'complete') completed = true
       if (data.type === 'end') ended = true
-      $('messages').scrollTop = $('messages').scrollHeight
+      scrollChat()
     }
     while (true) {
       const { value, done } = await reader.read()
@@ -273,7 +261,10 @@ $('question-form').onsubmit = async (event) => {
     if (streamError) throw new Error(streamError)
     if (!ended && !completed)
       throw new Error('The response stream ended early. Please retry.')
-    status('Response complete · connected backend')
+    output.classList.remove('is-streaming')
+    answerActions(output, responseText, answerEvidence, answerSourceCount)
+    saveDocumentChat()
+    status('Response complete')
   } catch (error) {
     const message = error.status === 401 || /invalid or expired token/i.test(error.message)
       ? 'Your session has expired. Please sign in again to continue.'
@@ -281,7 +272,10 @@ $('question-form').onsubmit = async (event) => {
     say(message)
     status(message, true)
   } finally {
+    document.querySelectorAll('.is-streaming').forEach((el) => el.classList.remove('is-streaming'))
     setBusy(false)
+    saveDocumentChat()
+    $('question').focus({ preventScroll: true })
   }
 }
 document.querySelectorAll('[data-question]').forEach(
@@ -294,13 +288,18 @@ document.querySelectorAll('[data-question]').forEach(
 $('clear').onclick = () => {
   $('messages').replaceChildren()
   sessionId = ''
-  say('Conversation cleared. Ask a new question about your selected document.')
-  status('Ready')
+  $('chat-main').classList.remove('has-conversation')
+  if (docs[selected]) { docs[selected].chatNodes = []; docs[selected].chatSession = ''; docs[selected].evidence = ''; docs[selected].sourceCount = 0 }
+  render()
+  closeLibraryOnMobile()
+  $('question').focus()
+  status('New conversation · ' + (docs[selected]?.name || 'add a document to begin'))
 }
 $('upload').onchange = async () => {
   const file = $('upload').files[0]
   if (!file) return
-  if (!token) { status('Sign in before uploading a document.', true); $('upload').value = ''; return }
+  if (LOCAL_PREVIEW) { status('This layout preview uses a sample document. Open the standard local workspace to connect your own documents.'); $('upload').value = ''; return }
+  if (!token) { status('Sign in before uploading a document.', true); $('upload').value = ''; $('settings').showModal(); return }
   setBusy(true)
   try {
     const limit = token ? 10 * 1024 * 1024 : 1024 * 1024
@@ -339,11 +338,14 @@ $('upload').onchange = async () => {
       doc.text = await file.text()
       if (!doc.text.trim()) throw new Error('This document is empty.')
     }
+    saveDocumentChat()
     docs.push(doc)
     selected = docs.length - 1
     agentId = doc.agentId || ''
     sessionId = ''
+    restoreDocumentChat(doc)
     render()
+    closeLibraryOnMobile()
     status(
       token
         ? 'Document indexed · ready for questions'
@@ -381,7 +383,7 @@ function acceptSession(result) {
   $('mode').textContent = 'Connected to your backend'
   $('connect').hidden = true; $('disconnect').hidden = false
   $('messages').replaceChildren()
-  say('Connected. Upload a PDF, TXT or Markdown document to begin.')
+  $('chat-main').classList.remove('has-conversation')
   status('Authenticated · session persists securely across refreshes')
   render()
 }
@@ -489,7 +491,140 @@ async function completeGoogle() {
     acceptSession(result)
   } catch (error) { $('login-status').textContent = error.message }
 }
+
+let followChat = true
+function scrollChat(force = false) {
+  if (force) followChat = true
+  if (followChat) requestAnimationFrame(() => { $('chat-scroll').scrollTop = $('chat-scroll').scrollHeight })
+}
+$('chat-scroll').addEventListener('scroll', () => {
+  const el = $('chat-scroll')
+  followChat = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+})
+function resizeComposer() {
+  $('question').style.height = 'auto'
+  $('question').style.height = Math.min($('question').scrollHeight, 180) + 'px'
+}
+$('question').addEventListener('input', resizeComposer)
+$('question').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && !matchMedia('(pointer: coarse)').matches) {
+    event.preventDefault()
+    $('question-form').requestSubmit()
+  }
+})
+$('attach-document').onclick = () => $('upload').click()
+function saveDocumentChat() {
+  const doc = docs[selected]
+  if (!doc) return
+  doc.chatNodes = [...$('messages').children]
+  doc.chatSession = sessionId
+}
+function restoreDocumentChat(doc) {
+  $('messages').replaceChildren(...(doc.chatNodes || []))
+  $('chat-main').classList.toggle('has-conversation', Boolean(doc.chatNodes?.length))
+  scrollChat(true)
+}
+function updateEvidence(text, count) {
+  $('evidence').textContent = text
+  $('source-count').textContent = String(count)
+  if (docs[selected]) { docs[selected].evidence = text; docs[selected].sourceCount = count }
+}
+function answerActions(output, answer, evidence, sourceCount) {
+  const actions = document.createElement('div')
+  actions.className = 'message-actions'
+  const copy = document.createElement('button')
+  copy.textContent = 'Copy answer'
+  copy.onclick = async () => {
+    try { await navigator.clipboard.writeText(answer); copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy answer' }, 1800) }
+    catch { status('Copy is unavailable. You can select and copy the answer text.', true) }
+  }
+  actions.append(copy)
+  if (evidence) {
+    const source = document.createElement('button')
+    source.textContent = 'View source' + (sourceCount > 1 ? 's (' + sourceCount + ')' : '')
+    source.onclick = () => { updateEvidence(evidence, sourceCount); showEvidence(true) }
+    actions.append(source)
+  }
+  output.append(actions)
+}
+let panelReturnFocus = null
+const mobileLibrary = matchMedia('(max-width: 767px)')
+const overlayEvidence = matchMedia('(max-width: 1199px)')
+function syncPanels() {
+  const libraryOpen = mobileLibrary.matches ? $('library').classList.contains('mobile-open') : !$('workspace').classList.contains('library-collapsed')
+  $('toggle-library').setAttribute('aria-expanded', String(libraryOpen))
+  const evidenceOpen = !$('source-panel').hidden
+  $('toggle-evidence').setAttribute('aria-expanded', String(evidenceOpen))
+  const overlay = (libraryOpen && mobileLibrary.matches) || (evidenceOpen && overlayEvidence.matches)
+  $('drawer-backdrop').hidden = !overlay
+  $('chat-main').inert = overlay
+  for (const [panel, active] of [[$('library'), libraryOpen && mobileLibrary.matches], [$('source-panel'), evidenceOpen && overlayEvidence.matches]]) {
+    if (active) { panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true') }
+    else { panel.removeAttribute('role'); panel.removeAttribute('aria-modal') }
+  }
+}
+function closeLibraryOnMobile() {
+  if (!mobileLibrary.matches || !$('library').classList.contains('mobile-open')) return
+  $('library').classList.remove('mobile-open')
+  syncPanels()
+  $('toggle-library').focus()
+}
+function showEvidence(open) {
+  if (!open && $('source-panel').hidden) return
+  if (open) {
+    panelReturnFocus = document.activeElement
+    $('library').classList.remove('mobile-open')
+  }
+  $('source-panel').hidden = !open
+  $('workspace').classList.toggle('evidence-open', open)
+  syncPanels()
+  if (open) $('close-evidence').focus()
+  else if (panelReturnFocus?.isConnected) panelReturnFocus.focus()
+}
+$('toggle-evidence').onclick = () => showEvidence($('source-panel').hidden)
+$('close-evidence').onclick = () => showEvidence(false)
+$('toggle-library').onclick = () => {
+  if (mobileLibrary.matches) {
+    showEvidence(false)
+    panelReturnFocus = $('toggle-library')
+    $('library').classList.toggle('mobile-open')
+  } else $('workspace').classList.toggle('library-collapsed')
+  syncPanels()
+  if (mobileLibrary.matches && $('library').classList.contains('mobile-open')) $('close-library').focus()
+}
+$('close-library').onclick = closeLibraryOnMobile
+$('drawer-backdrop').onclick = () => { showEvidence(false); closeLibraryOnMobile() }
+document.addEventListener('keydown', (event) => {
+  if ($('settings').open) return
+  if (event.key === 'Escape') { showEvidence(false); closeLibraryOnMobile(); return }
+  if (event.key !== 'Tab' || $('drawer-backdrop').hidden) return
+  const panel = !$('source-panel').hidden ? $('source-panel') : $('library')
+  const controls = [...panel.querySelectorAll('a, button:not(:disabled), input:not(:disabled), [tabindex="0"]')].filter(el => !el.hidden && el.getClientRects().length)
+  const first = controls[0], last = controls.at(-1)
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+})
+mobileLibrary.addEventListener('change', () => { $('library').classList.remove('mobile-open'); syncPanels() })
+overlayEvidence.addEventListener('change', syncPanels)
+syncPanels()
+
 reset()
-void authOptions()
-void completeGoogle()
-void restoreSession()
+if (LOCAL_PREVIEW) {
+  const { previewDocument } = await import('./preview-data.js')
+  docs = [{ ...previewDocument }]
+  token = 'local-preview'
+  agentId = previewDocument.agentId
+  $('preview-banner').hidden = false
+  $('mode').textContent = 'Local layout preview'
+  $('connect').hidden = true
+  $('account-label').textContent = 'Preview workspace'
+  $('account-caption').textContent = 'Fictional sample · no account needed'
+  $('upload-help').textContent = 'Preview only. Sample questions do not call an AI provider.'
+  document.querySelector('.provider-note').textContent = 'Fictional sample content for reviewing the layout. This preview does not use the live backend.'
+  status('Choose a suggested question to explore a sample conversation.')
+  render()
+} else {
+  void authOptions()
+  void completeGoogle()
+  void restoreSession()
+}
