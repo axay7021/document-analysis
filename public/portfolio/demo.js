@@ -120,10 +120,15 @@ function setBusy(value) {
     .forEach((b) => (b.disabled = value))
 }
 async function api(path, options = {}) {
+  const storedToken = (token && token !== 'cookie-session' && token !== 'local-preview')
+    ? token
+    : (localStorage.getItem('document_access_token') || sessionStorage.getItem('document_access_token') || '')
+  const authHeader = storedToken ? { Authorization: `Bearer ${storedToken}` } : {}
   const response = await fetch(origin + '/api/v1' + path, {
     ...options,
     credentials: 'include',
     headers: {
+      ...authHeader,
       ...options.headers,
     },
     signal: AbortSignal.timeout(120000),
@@ -143,6 +148,8 @@ async function api(path, options = {}) {
   return response
 }
 function reset() {
+  localStorage.removeItem('document_access_token')
+  sessionStorage.removeItem('document_access_token')
   token = ''
   origin = ''
   agentId = ''
@@ -266,6 +273,7 @@ $('question-form').onsubmit = async (event) => {
     saveDocumentChat()
     status('Response complete')
   } catch (error) {
+    if (error.status === 401) reset()
     const message = error.status === 401 || /invalid or expired token/i.test(error.message)
       ? 'Your session has expired. Please sign in again to continue.'
       : error.message || 'Something went wrong. Please try again.'
@@ -352,6 +360,7 @@ $('upload').onchange = async () => {
         : 'Document added locally · ready for questions'
     )
   } catch (error) {
+    if (error.status === 401) reset()
     status(error.message, true)
   } finally {
     $('upload').value = ''
@@ -375,7 +384,14 @@ function verificationMode(enabled) {
   if (enabled) $('verification-code').focus()
 }
 function acceptSession(result) {
-  token = 'cookie-session'
+  const jwt = result?.data?.token || result?.token || ''
+  if (jwt) {
+    localStorage.setItem('document_access_token', jwt)
+    sessionStorage.setItem('document_access_token', jwt)
+    token = jwt
+  } else {
+    token = 'cookie-session'
+  }
   docs = []; selected = 0; agentId = ''; sessionId = ''
   $('password').value = ''; $('verification-code').value = ''
   verificationMode(false)
@@ -456,20 +472,29 @@ async function authOptions() {
 }
 async function restoreSession() {
   if (!API_ORIGIN) return
+  const savedToken = localStorage.getItem('document_access_token') || sessionStorage.getItem('document_access_token') || ''
   try {
     useConfiguredOrigin()
+    if (savedToken) {
+      token = savedToken
+    }
     const response = await api('/auth/profile')
-    if (!response.ok) return
+    if (!response.ok) {
+      if (savedToken) reset()
+      return
+    }
     const result = await response.json()
     if (result.success) {
-      token = 'cookie-session'
+      token = savedToken || 'cookie-session'
       $('mode').textContent = 'Connected to your backend'
       $('connect').hidden = true; $('disconnect').hidden = false
       status('Authenticated · session restored securely')
       render()
+    } else if (savedToken) {
+      reset()
     }
   } catch {
-    token = ''
+    if (savedToken) reset()
   }
 }
 async function completeGoogle() {
