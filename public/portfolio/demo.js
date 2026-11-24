@@ -147,9 +147,11 @@ async function api(path, options = {}) {
   }
   return response
 }
-function reset() {
-  localStorage.removeItem('document_access_token')
-  sessionStorage.removeItem('document_access_token')
+function reset(clearStorage = false) {
+  if (clearStorage) {
+    localStorage.removeItem('document_access_token')
+    sessionStorage.removeItem('document_access_token')
+  }
   token = ''
   origin = ''
   agentId = ''
@@ -273,7 +275,7 @@ $('question-form').onsubmit = async (event) => {
     saveDocumentChat()
     status('Response complete')
   } catch (error) {
-    if (error.status === 401) reset()
+    if (error.status === 401) reset(true)
     const message = error.status === 401 || /invalid or expired token/i.test(error.message)
       ? 'Your session has expired. Please sign in again to continue.'
       : error.message || 'Something went wrong. Please try again.'
@@ -360,7 +362,7 @@ $('upload').onchange = async () => {
         : 'Document added locally · ready for questions'
     )
   } catch (error) {
-    if (error.status === 401) reset()
+    if (error.status === 401) reset(true)
     status(error.message, true)
   } finally {
     $('upload').value = ''
@@ -370,7 +372,7 @@ $('upload').onchange = async () => {
 $('connect').onclick = () => $('settings').showModal()
 $('close').onclick = () => $('settings').close()
 $('disconnect').onclick = async () => {
-  try { await api('/auth/logout', { method: 'POST' }) } finally { reset() }
+  try { await api('/auth/logout', { method: 'POST' }) } finally { reset(true) }
 }
 let verifyingEmail = false
 function verificationMode(enabled) {
@@ -383,7 +385,26 @@ function verificationMode(enabled) {
   $('login').textContent = enabled ? 'Verify email and continue' : 'Continue'
   if (enabled) $('verification-code').focus()
 }
-function acceptSession(result) {
+async function loadUserDocuments() {
+  try {
+    const res = await api('/prompts')
+    const data = await res.json()
+    const agents = data.data?.agents || []
+    if (agents.length) {
+      docs = agents.map((agent) => ({
+        name: agent.name || 'Uploaded document',
+        text: 'Document indexed by your backend. Ask a question to retrieve evidence.',
+        agentId: agent.id,
+      }))
+      selected = 0
+      agentId = docs[0]?.agentId || ''
+      sessionId = ''
+    }
+  } catch (e) {
+    console.error('Failed to load user documents:', e)
+  }
+}
+async function acceptSession(result) {
   const jwt = result?.data?.token || result?.token || ''
   if (jwt) {
     localStorage.setItem('document_access_token', jwt)
@@ -401,6 +422,7 @@ function acceptSession(result) {
   $('messages').replaceChildren()
   $('chat-main').classList.remove('has-conversation')
   status('Authenticated · session persists securely across refreshes')
+  await loadUserDocuments()
   render()
 }
 function useConfiguredOrigin() {
@@ -427,7 +449,7 @@ $('login-form').onsubmit = async (event) => {
     useConfiguredOrigin()
     if (verifyingEmail) {
       const result = await (await api('/auth/verify-email', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,code:$('verification-code').value})})).json()
-      acceptSession(result)
+      await acceptSession(result)
       return
     }
     const registering = $('register-mode').checked
@@ -442,7 +464,7 @@ $('login-form').onsubmit = async (event) => {
       $('login-status').textContent = 'Check your email for your verification code.'
       return
     }
-    acceptSession(result)
+    await acceptSession(result)
   } catch (error) {
     token = ''
     if (error.code === 'EMAIL_NOT_VERIFIED') { verificationMode(true); $('password').value = '' }
@@ -473,28 +495,26 @@ async function authOptions() {
 async function restoreSession() {
   if (!API_ORIGIN) return
   const savedToken = localStorage.getItem('document_access_token') || sessionStorage.getItem('document_access_token') || ''
+  if (!savedToken) return
   try {
     useConfiguredOrigin()
-    if (savedToken) {
-      token = savedToken
-    }
+    token = savedToken
     const response = await api('/auth/profile')
-    if (!response.ok) {
-      if (savedToken) reset()
-      return
-    }
     const result = await response.json()
     if (result.success) {
-      token = savedToken || 'cookie-session'
+      token = savedToken
       $('mode').textContent = 'Connected to your backend'
       $('connect').hidden = true; $('disconnect').hidden = false
       status('Authenticated · session restored securely')
+      await loadUserDocuments()
       render()
-    } else if (savedToken) {
-      reset()
+    } else {
+      reset(true)
     }
-  } catch {
-    if (savedToken) reset()
+  } catch (error) {
+    if (error.status === 401) {
+      reset(true)
+    }
   }
 }
 async function completeGoogle() {
@@ -513,7 +533,7 @@ async function completeGoogle() {
     if (!proof) throw new Error('Start Google sign-in from this browser tab.')
     useConfiguredOrigin()
     const result = await (await api('/auth/google/exchange', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,verifier:proof})})).json()
-    acceptSession(result)
+    await acceptSession(result)
   } catch (error) { $('login-status').textContent = error.message }
 }
 
@@ -633,7 +653,7 @@ mobileLibrary.addEventListener('change', () => { $('library').classList.remove('
 overlayEvidence.addEventListener('change', syncPanels)
 syncPanels()
 
-reset()
+reset(false)
 if (LOCAL_PREVIEW) {
   const { previewDocument } = await import('./preview-data.js')
   docs = [{ ...previewDocument }]
@@ -650,6 +670,10 @@ if (LOCAL_PREVIEW) {
   render()
 } else {
   void authOptions()
-  void completeGoogle()
-  void restoreSession()
+  const hasAuthCode = new URLSearchParams(location.hash.slice(1)).has('auth_code')
+  if (hasAuthCode) {
+    void completeGoogle()
+  } else {
+    void restoreSession()
+  }
 }
